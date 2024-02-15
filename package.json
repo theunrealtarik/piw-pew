@@ -1,0 +1,8 @@
+{
+  "name": "piw-pew",
+  "scripts": {
+    "client:dev": "RUST_LOG=gfx_device_gl=off,TRACE cargo run --package client",
+    "client:build": "RUST_LOG=piw_pew=TRACE cargo build --package client",
+    "build": "cargo build --release"
+  }
+}

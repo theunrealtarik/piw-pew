@@ -1,0 +1,27 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "piw-pew"
+path = "./src/main.rs"
+
+[lib]
+name = "lib"
+path = "./src/lib/mod.rs"
+
+[dependencies]
+slib = { path = "../slib" }
+nalgebra = { workspace = true }
+log = { workspace = true, features = ["max_level_debug", "release_max_level_warn"]  }
+env_logger = { workspace = true }
+piston = "0.55.0"
+piston2d-graphics = "0.44.0"
+pistoncore-glutin_window = "0.72.0"
+piston2d-opengl_graphics = "0.84.0"
+piston_window = "0.131.0"
+ncollide2d = "0.33.0"
+strum_macros = "0.26.1"
+strum = "0.26.1"
