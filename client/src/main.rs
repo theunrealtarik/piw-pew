@@ -6,7 +6,7 @@ use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport},
     ConnectionConfig, DefaultChannel, RenetClient,
 };
-use slib::net::PROTOCOL_ID;
+use slib::net::{DELTA_TIME, PROTOCOL_ID};
 use std::{
     env::current_dir,
     net::{SocketAddr, UdpSocket},
@@ -26,8 +26,8 @@ fn main() {
 
     let uuid = u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap());
 
-    let server_addr: SocketAddr = "127.0.0.1:5000".parse().expect("failed to server socket");
-    let socket = UdpSocket::bind("127.0.0.1:6969").unwrap();
+    let server_addr: SocketAddr = "127.0.0.1:6969".parse().expect("failed to server socket");
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
 
     let current_time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -52,14 +52,17 @@ fn main() {
     let (handle, thread) = window.build();
     let mut game = Game::new(handle, thread);
 
-    game.handle.set_target_fps(60);
     while !game.handle.window_should_close() {
         game.update();
         game.render();
 
-        let delta_time = Duration::from_millis(16);
+        let delta_time = DELTA_TIME;
         client.update(delta_time);
         transport.update(delta_time, &mut client).unwrap();
+
+        if client.is_connecting() {
+            log::info!("connecting")
+        }
 
         if client.is_connected() {
             client.send_message(DefaultChannel::ReliableOrdered, "client text");
