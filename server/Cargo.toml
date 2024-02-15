@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 slib = { path = "../slib" }
-renet = "0.0.14"
+renet = { workspace = true }
+log = { workspace = true, features = ["max_level_debug", "release_max_level_warn"]  }
+env_logger = { workspace = true }

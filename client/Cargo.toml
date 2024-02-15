@@ -15,13 +15,18 @@ path = "./src/lib/mod.rs"
 [dependencies]
 slib = { path = "../slib" }
 nalgebra = { workspace = true }
+renet = { workspace = true }
 log = { workspace = true, features = ["max_level_debug", "release_max_level_warn"]  }
 env_logger = { workspace = true }
-piston = "0.55.0"
-piston2d-graphics = "0.44.0"
-pistoncore-glutin_window = "0.72.0"
-piston2d-opengl_graphics = "0.84.0"
-piston_window = "0.131.0"
+raylib = { version = "3.7" }
 ncollide2d = "0.33.0"
 strum_macros = "0.26.1"
 strum = "0.26.1"
+
+[dependencies.uuid]
+version = "1.7.0"
+features = [
+    "v4",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+]

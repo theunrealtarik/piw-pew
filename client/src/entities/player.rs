@@ -1,84 +1,100 @@
-use lib::types::{Position, Transform};
-use ncollide2d::shape::Capsule;
-use piston::{Button, ButtonArgs, Key, RenderArgs, UpdateArgs};
-
-use crate::{
-    components::*,
-    configs::{PLAYER_COLOR, PLAYER_SIZE},
-    game::GameGraphics,
-};
+use crate::configs::{entities, font, window};
+use lib::core::*;
+use nalgebra::{self, Point2, Scale2, Vector2};
+use raylib::prelude::*;
 
 pub struct Player {
-    pub orientation: f32,
-    pub position: Position,
-    pub health: Health,
-    pub controller: Controller,
-    pub shape: Capsule<f64>,
+    orientation: f32,
+    position: Point2<f32>,
+    scale: Scale2<f32>,
+    velocity: Vector2<f32>,
+    controller: Controller,
+    health: Health,
+    color: Color,
 }
 
 impl Player {
     pub fn new() -> Self {
         Self {
             orientation: 0.0,
-            position: Position::new(0.0, 0.0),
+            position: Point2::new(0.0, 0.0),
             health: Health::new(100.0),
             controller: Controller::new(),
-            shape: Capsule::new(PLAYER_SIZE, 0.05),
+            scale: Scale2::new(40.0, 40.0),
+            velocity: Vector2::new(10.0, 10.0),
+            color: entities::PLAYER_COLOR,
         }
     }
 }
 
-impl GameObject for Player {
-    fn update(&mut self, _args: &UpdateArgs) {}
+impl Update for Player {
+    fn update(&mut self, handle: &mut RaylibHandle) {
+        self.controller.on_hold(handle, KeyboardKey::KEY_W, || {
+            self.position.y -= self.velocity.y
+        });
+        self.controller.on_hold(handle, KeyboardKey::KEY_S, || {
+            self.position.y += self.velocity.y
+        });
+        self.controller.on_hold(handle, KeyboardKey::KEY_D, || {
+            self.position.x += self.velocity.x
+        });
+        self.controller.on_hold(handle, KeyboardKey::KEY_A, || {
+            self.position.x -= self.velocity.x
+        });
 
-    fn render(&mut self, _args: &RenderArgs, transform: Transform, canvas: &mut GameGraphics) {
-        canvas.rectangle(
-            PLAYER_COLOR,
-            graphics::rectangle::square(self.position.x, self.position.y, PLAYER_SIZE),
-            transform,
+        self.position.x = nalgebra::clamp(
+            self.position.x,
+            self.scale.x / 2.0,
+            window::WINDOW_WIDTH as f32 - self.scale.x / 2.0,
         );
 
-        self.controller
-            .on_hold(&Button::Keyboard(Key::W), || self.position.y -= 10.0);
-        self.controller
-            .on_hold(&Button::Keyboard(Key::D), || self.position.x += 10.0);
-        self.controller
-            .on_hold(&Button::Keyboard(Key::S), || self.position.y += 10.0);
-        self.controller
-            .on_hold(&Button::Keyboard(Key::A), || self.position.x -= 10.0);
+        self.position.y = nalgebra::clamp(
+            self.position.y,
+            self.scale.y / 2.0,
+            window::WINDOW_HEIGHT as f32 - self.scale.y / 2.0,
+        );
+
+        let mouse_pos = handle.get_mouse_position();
+        let mouse_x = mouse_pos.x as f32 - self.position.x;
+        let mouse_y = mouse_pos.y as f32 - self.position.y;
+
+        self.orientation = mouse_y.atan2(mouse_x).to_degrees();
+    }
+}
+
+impl Render for Player {
+    fn render(&mut self, d: &mut RaylibDrawHandle) {
+        let rect = Rectangle::new(self.position.x, self.position.y, self.scale.x, self.scale.y);
+        let origin = ffi::Vector2 {
+            x: rect.width / 2.0,
+            y: rect.height / 2.0,
+        };
+
+        d.draw_rectangle_pro(rect, origin, self.orientation, entities::PLAYER_COLOR);
+        d.draw_text(
+            &format!("x: {:?} y: {:?}", self.position.x, self.position.y),
+            window::WINDOW_TOP_LEFT_X + window::WINDOW_PADDING,
+            window::WINDOW_TOP_LEFT_Y + window::WINDOW_PADDING * 2,
+            font::STANDARD_TEXT_SIZE,
+            font::STANDARD_TEXT_COLOR,
+        )
     }
 }
 
 impl Entity for Player {
-    fn position(&self) -> &Position {
+    fn get_position(&self) -> &Point2<f32> {
         &self.position
     }
 
-    fn health(&self) -> &Health {
+    fn get_health(&self) -> &Health {
         &self.health
     }
-}
 
-impl Controllable for Player {
-    fn controller(&self) -> &Controller {
-        &self.controller
+    fn get_scale(&self) -> &Scale2<f32> {
+        &self.scale
     }
 
-    fn controller_mut(&mut self) -> &mut Controller {
-        &mut self.controller
-    }
-
-    fn button(&mut self, args: &ButtonArgs) -> () {
-        let controller = self.controller_mut();
-        controller.on_press(
-            args,
-            Some(|btn| match btn {
-                Button::Keyboard(Key::E) => {
-                    println!("pick up");
-                }
-                _ => {}
-            }),
-        );
-        controller.on_release(args, None::<fn(_)>);
+    fn get_velocity(&self) -> &Vector2<f32> {
+        &self.velocity
     }
 }

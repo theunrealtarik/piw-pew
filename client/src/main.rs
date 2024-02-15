@@ -1,53 +1,71 @@
-extern crate graphics;
-extern crate opengl_graphics;
-extern crate piston;
-extern crate piston_window;
-
-mod components;
 mod configs;
 mod entities;
 mod game;
-use std::env::current_dir;
 
-use configs::*;
-use game::*;
-use lib::assets::{Assets, FONTS};
-
-use opengl_graphics::{GlGraphics, GlyphCache, OpenGL, TextureSettings};
-use piston::event_loop::{EventSettings, Events};
-use piston::input::{RenderEvent, UpdateEvent};
-use piston::window::WindowSettings;
-use piston::{ButtonEvent, EventLoop};
-use piston_window::PistonWindow as Window;
+use renet::{
+    transport::{ClientAuthentication, NetcodeClientTransport},
+    ConnectionConfig, DefaultChannel, RenetClient,
+};
+use slib::net::PROTOCOL_ID;
+use std::{
+    env::current_dir,
+    net::{SocketAddr, UdpSocket},
+    time::{Duration, SystemTime},
+};
+use uuid::Uuid;
 
 use env_logger;
+use game::Game;
+use lib::assets::Assets;
 
 fn main() {
     env_logger::init();
 
-    let opengl = OpenGL::V3_2;
+    let _ = Assets::load(&current_dir().unwrap().join("assets"));
+    let mut client = RenetClient::new(ConnectionConfig::default());
 
-    let mut window: Window = WindowSettings::new(WINDOW_NAME, [WINDOW_WIDTH, WINDOW_HEIGHT])
-        .graphics_api(opengl)
-        .exit_on_esc(true)
-        .fullscreen(false)
-        .resizable(false)
-        .vsync(true)
-        .automatic_close(true)
-        .build()
+    let uuid = u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap());
+
+    let server_addr: SocketAddr = "127.0.0.1:5000".parse().expect("failed to server socket");
+    let socket = UdpSocket::bind("127.0.0.1:6969").unwrap();
+
+    let current_time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
 
-    let game_assets = Assets::load(&current_dir().unwrap().join("assets"));
-    let game_context = GameGraphics::new(
-        GlGraphics::new(opengl),
-        GlyphCache::new(FONTS::FNT_POPPINS.as_path(), (), TextureSettings::new()).unwrap(),
+    let authentication = ClientAuthentication::Unsecure {
+        server_addr,
+        client_id: 0,
+        user_data: None,
+        protocol_id: PROTOCOL_ID,
+    };
+
+    let mut transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+    let mut window = raylib::init();
+
+    window.title(configs::window::WINDOW_NAME);
+    window.size(
+        configs::window::WINDOW_WIDTH,
+        configs::window::WINDOW_HEIGHT,
     );
 
-    let mut game = Game::new(game_context);
-    let mut events = Events::new(EventSettings::new()).ups(60);
-    while let Some(e) = events.next(&mut window) {
-        e.update(|args| game.update(args));
-        e.render(|args| game.render(args));
-        e.button(|args| game.button(&args));
+    let (handle, thread) = window.build();
+    let mut game = Game::new(handle, thread);
+
+    game.handle.set_target_fps(60);
+    while !game.handle.window_should_close() {
+        game.update();
+        game.render();
+
+        let delta_time = Duration::from_millis(16);
+        client.update(delta_time);
+        transport.update(delta_time, &mut client).unwrap();
+
+        if client.is_connected() {
+            client.send_message(DefaultChannel::ReliableOrdered, "client text");
+        }
+
+        transport.send_packets(&mut client).unwrap();
+        std::thread::sleep(delta_time);
     }
 }
