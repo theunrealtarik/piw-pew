@@ -3,7 +3,7 @@
 
 members = [
     "client",
-    "server",
+    "server/core",
     "slib"
 ]
 

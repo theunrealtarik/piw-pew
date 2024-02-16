@@ -6,11 +6,14 @@ use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport},
     ConnectionConfig, DefaultChannel, RenetClient,
 };
-use slib::net::{DELTA_TIME, PROTOCOL_ID};
+use slib::{
+    logging::Logger,
+    net::{DELTA_TIME, PROTOCOL_ID},
+};
 use std::{
     env::current_dir,
     net::{SocketAddr, UdpSocket},
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 use uuid::Uuid;
 
@@ -19,12 +22,12 @@ use game::Game;
 use lib::assets::Assets;
 
 fn main() {
-    env_logger::init();
+    env_logger::init_from_env(Logger::env());
 
     let _ = Assets::load(&current_dir().unwrap().join("assets"));
     let mut client = RenetClient::new(ConnectionConfig::default());
 
-    let uuid = u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap());
+    let _uuid = u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap());
 
     let server_addr: SocketAddr = "127.0.0.1:6969".parse().expect("failed to server socket");
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();

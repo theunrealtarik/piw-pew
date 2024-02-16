@@ -1,18 +1,17 @@
-use egui::mutex::Mutex;
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
     ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
 };
 use slib::net::{DELTA_TIME, PROTOCOL_ID};
 use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
-    sync::Arc,
+    net::{IpAddr, SocketAddr, UdpSocket},
+    sync::{Arc, Mutex},
     time::SystemTime,
 };
 
-use lib::{Connection, ServerState};
-
 pub struct Server;
+
+use lib::{Connection, ServerState};
 
 impl Server {
     pub fn run(connection: &Arc<Connection>, state: &Arc<Mutex<ServerState>>) {

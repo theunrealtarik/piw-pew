@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 nalgebra = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
