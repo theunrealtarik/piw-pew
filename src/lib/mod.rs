@@ -1,3 +1,26 @@
+pub mod net {
+    use std::time::Duration;
+
+    pub const PROTOCOL_ID: u64 = 69;
+    pub const DELTA_TIME: Duration = Duration::from_millis(12);
+}
+
+pub mod logging {
+    use env_logger::{self, Env};
+
+    pub struct Logger;
+    impl Logger {
+        pub fn env() -> Env<'static> {
+            let env = Env::default()
+                .filter_or("RUST_LOG", "server=trace,client=trace,lib=trace")
+                .write_style_or("RUST_STYLE_LOG", "always");
+            env
+        }
+    }
+}
+
+pub mod shared {}
+
 pub mod types {
     extern crate nalgebra as na;
 
@@ -18,74 +41,9 @@ pub mod core {
 
     pub trait Entity {
         fn get_position(&self) -> &Point2<f32>;
-        fn get_health(&self) -> &Health;
+        fn get_health(&self) -> &i8;
         fn get_scale(&self) -> &Scale2<f32>;
         fn get_velocity(&self) -> &Vector2<f32>;
-    }
-
-    pub struct Controller;
-    impl Controller {
-        pub fn new() -> Self {
-            Self {}
-        }
-
-        pub fn on_press<F>(&self, handle: &RaylibHandle, key: KeyboardKey, f: F)
-        where
-            F: FnOnce(),
-        {
-            if handle.is_key_pressed(key) {
-                f()
-            }
-        }
-
-        pub fn on_release<F>(&self, handle: &RaylibHandle, key: KeyboardKey, f: F)
-        where
-            F: FnOnce(),
-        {
-            if handle.is_key_released(key) {
-                f()
-            }
-        }
-
-        pub fn on_hold<F>(&self, handle: &RaylibHandle, key: KeyboardKey, f: F)
-        where
-            F: FnOnce(),
-        {
-            if handle.is_key_down(key) {
-                f()
-            }
-        }
-    }
-
-    pub struct Health {
-        value: f32,
-        threshold: f32,
-        percentage: f32,
-    }
-
-    #[allow(dead_code)]
-    impl Health {
-        pub fn new(base: f32) -> Self {
-            Self {
-                value: base,
-                threshold: base,
-                percentage: 100.0,
-            }
-        }
-
-        pub fn damage(&mut self, amount: f32) {
-            self.value = self.value - amount;
-            self.percentage = self.value / self.threshold * 100.0;
-        }
-
-        pub fn heal(&mut self, amout: f32) {
-            self.value = self.value + amout;
-            self.percentage = self.value / self.threshold * 100.0;
-        }
-
-        pub fn set(&mut self, hp: f32) {
-            self.value = hp;
-        }
     }
 }
 

@@ -8,9 +8,7 @@ pub struct Player {
     position: Point2<f32>,
     scale: Scale2<f32>,
     velocity: Vector2<f32>,
-    controller: Controller,
-    health: Health,
-    color: Color,
+    hp: i8,
 }
 
 impl Player {
@@ -18,29 +16,29 @@ impl Player {
         Self {
             orientation: 0.0,
             position: Point2::new(0.0, 0.0),
-            health: Health::new(100.0),
-            controller: Controller::new(),
             scale: Scale2::new(40.0, 40.0),
             velocity: Vector2::new(10.0, 10.0),
-            color: entities::PLAYER_COLOR,
+            hp: 100,
         }
     }
 }
 
 impl Update for Player {
     fn update(&mut self, handle: &mut RaylibHandle) {
-        self.controller.on_hold(handle, KeyboardKey::KEY_W, || {
+        if handle.is_key_down(KeyboardKey::KEY_W) {
             self.position.y -= self.velocity.y
-        });
-        self.controller.on_hold(handle, KeyboardKey::KEY_S, || {
+        }
+
+        if handle.is_key_down(KeyboardKey::KEY_S) {
             self.position.y += self.velocity.y
-        });
-        self.controller.on_hold(handle, KeyboardKey::KEY_D, || {
+        }
+        if handle.is_key_down(KeyboardKey::KEY_D) {
             self.position.x += self.velocity.x
-        });
-        self.controller.on_hold(handle, KeyboardKey::KEY_A, || {
+        }
+
+        if handle.is_key_down(KeyboardKey::KEY_Q) {
             self.position.x -= self.velocity.x
-        });
+        }
 
         self.position.x = nalgebra::clamp(
             self.position.x,
@@ -74,7 +72,7 @@ impl Render for Player {
         d.draw_text(
             &format!("x: {:?} y: {:?}", self.position.x, self.position.y),
             window::WINDOW_TOP_LEFT_X + window::WINDOW_PADDING,
-            window::WINDOW_TOP_LEFT_Y + window::WINDOW_PADDING * 2,
+            window::WINDOW_TOP_LEFT_Y + window::WINDOW_PADDING,
             font::STANDARD_TEXT_SIZE,
             font::STANDARD_TEXT_COLOR,
         )
@@ -86,8 +84,8 @@ impl Entity for Player {
         &self.position
     }
 
-    fn get_health(&self) -> &Health {
-        &self.health
+    fn get_health(&self) -> &i8 {
+        &self.hp
     }
 
     fn get_scale(&self) -> &Scale2<f32> {
