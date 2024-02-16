@@ -3,10 +3,19 @@ name = "server"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "piw-pew-server"
+path = "./src/main.rs"
+
+[lib]
+name = "lib"
+path = "./src/lib/mod.rs"
 
 [dependencies]
 slib = { path = "../slib" }
 renet = { workspace = true }
 log = { workspace = true, features = ["max_level_debug", "release_max_level_warn"]  }
 env_logger = { workspace = true }
+bincode = { workspace = true }
+egui = "0.26.2"
+eframe = "0.26.2"

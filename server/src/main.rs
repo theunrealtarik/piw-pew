@@ -1,63 +1,26 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod gui;
+mod server;
+
+use std::{net::Ipv4Addr, sync::Arc, thread};
+
+use egui::mutex::Mutex;
 use env_logger;
-use renet::{
-    transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
-    ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
-};
-use slib::net::{DELTA_TIME, PROTOCOL_ID};
-use std::{
-    net::{SocketAddr, UdpSocket},
-    time::{Duration, Instant, SystemTime},
-};
+
+use gui::Window;
+use server::Server;
+
+use lib::*;
 
 fn main() {
     env_logger::init();
 
-    let public_addr: SocketAddr = format!("0.0.0.0:{}", 6969).parse().unwrap();
+    let connection = Arc::new(Connection {
+        addr: Ipv4Addr::new(0, 0, 0, 0),
+        port: 6969,
+    });
+    let state = Arc::new(Mutex::new(ServerState {}));
 
-    let connection_config = ConnectionConfig::default();
-    let mut server: RenetServer = RenetServer::new(connection_config);
-
-    let current_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
-    let server_config = ServerConfig {
-        current_time,
-        max_clients: 64,
-        protocol_id: PROTOCOL_ID,
-        public_addresses: vec![public_addr],
-        authentication: ServerAuthentication::Unsecure,
-    };
-    let socket: UdpSocket = UdpSocket::bind(public_addr).unwrap();
-
-    let mut transport = match NetcodeServerTransport::new(server_config, socket) {
-        Ok(t) => {
-            log::info!("transporting layer is setup");
-            t
-        }
-        Err(_) => {
-            log::error!("failed to setup transporting layer");
-            std::process::exit(1);
-        }
-    };
-
-    loop {
-        let delta_time = DELTA_TIME;
-        server.update(delta_time);
-        transport.update(delta_time, &mut server).unwrap();
-
-        while let Some(event) = server.get_event() {
-            match event {
-                ServerEvent::ClientConnected { client_id } => {
-                    log::info!("client connected {}", client_id);
-                }
-                ServerEvent::ClientDisconnected { client_id, reason } => {
-                    log::info!("client disconnected {} {}", client_id, reason);
-                }
-            }
-        }
-
-        server.broadcast_message(DefaultChannel::ReliableOrdered, "server message");
-        transport.send_packets(&mut server);
-        std::thread::sleep(delta_time);
-    }
+    thread::park();
 }
