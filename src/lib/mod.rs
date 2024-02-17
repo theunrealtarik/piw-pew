@@ -64,3 +64,12 @@ pub mod core {
         fn get_velocity(&self) -> &Vector2<f32>;
     }
 }
+
+pub mod utils {
+    pub fn center<T: Copy + std::ops::Div<Output = T> + From<u32>>(width: T, height: T) -> (T, T) {
+        let half: T = T::from(2u32);
+        let x = width / half;
+        let y = height / half;
+        (x, y)
+    }
+}

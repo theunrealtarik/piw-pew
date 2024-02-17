@@ -3,18 +3,10 @@
 use crate::configs::window;
 use crate::entities::Player;
 
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{Error, ErrorKind, Read, Write},
-    net::{SocketAddr, UdpSocket},
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-    usize,
+use lib::{
+    core::{AssetsHandle, RenderHandle, UpdateHandle},
+    types::RVector2,
 };
-
-use lib::core::{AssetsHandle, RenderHandle, UpdateHandle};
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
@@ -23,12 +15,19 @@ use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport, NetcodeError},
     ConnectionConfig, RenetClient,
 };
-
+use serde;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Error, ErrorKind, Read, Write},
+    net::{SocketAddr, UdpSocket},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use strum::VariantArray;
 use strum_macros::{Display, EnumIter, VariantArray};
 use uuid::Uuid;
-
-use serde;
 
 pub struct GameState {
     player: Player,
@@ -254,21 +253,67 @@ impl RenderHandle for GameMenu {
     fn render(&mut self, d: &mut RaylibDrawHandle) {
         let assets = self.get_assets();
 
-        match assets.textures.get(&TEXTURE::UI_LOGO) {
-            Some(buffer) => {
-                // let buffer: Texture2D = *buffer;
-                // d.draw_texture_ex(
-                //     &buffer,
-                //     RVector2 {
-                //         x: window::WINDOW_CENTER_X,
-                //         y: window::WINDOW_CENTER_Y,
-                //     },
-                //     0.0,
-                //     1.0,
-                //     Color::WHITE,
-                // );
+        match (
+            assets.textures.get(&TEXTURE::UI_LOGO),
+            assets.textures.get(&TEXTURE::UI_LOADING),
+            assets.fonts.get(&FONT::FNT_POPPINS),
+        ) {
+            (Some(logo_buf), Some(loading_buf), Some(font_buf)) => {
+                let logo_texture: &Texture2D = logo_buf;
+                let loading_texture: &Texture2D = loading_buf;
+
+                let scale = 0.2;
+                let spacing = 5.0;
+
+                let origin = |texture2d: &Texture2D, size: f32| RVector2 {
+                    x: (texture2d.width as f32 * size) / 2.0,
+                    y: (texture2d.height as f32 * size) / 2.0,
+                };
+
+                let center = |texture2d: &Texture2D, size: f32| RVector2 {
+                    x: window::WINDOW_CENTER_X - origin(texture2d, size).x,
+                    y: window::WINDOW_CENTER_Y - origin(texture2d, size).y,
+                };
+
+                d.draw_texture_ex(
+                    logo_texture,
+                    center(logo_texture, scale)
+                        - RVector2 {
+                            x: 0.0,
+                            y: origin(logo_texture, scale).y - spacing,
+                        },
+                    0.0,
+                    scale,
+                    Color::WHITE,
+                );
+
+                d.draw_texture_ex(
+                    loading_texture,
+                    center(loading_texture, 0.2)
+                        + RVector2 {
+                            x: 0.0,
+                            y: origin(logo_texture, scale).y + spacing,
+                        },
+                    0.0,
+                    scale,
+                    Color::WHITE,
+                );
+
+                let font: &Font = font_buf;
+                let font_size = 25.0;
+                d.draw_text_ex(
+                    font,
+                    "made with hate and agony with some sufference by txreq",
+                    RVector2 {
+                        x: window::WINDOW_BOTTOM_LEFT_X as f32 * font_size * 2.0,
+                        y: window::WINDOW_BOTTOM_LEFT_Y as f32 * font_size * 2.0,
+                    },
+                    font_size,
+                    1.0,
+                    Color::WHITE,
+                );
             }
-            None => {}
+            _ => {}
         }
     }
 }

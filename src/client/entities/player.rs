@@ -46,7 +46,7 @@ impl UpdateHandle for Player {
             self.position.x += self.velocity.x
         }
 
-        if handle.is_key_down(KeyboardKey::KEY_Q) {
+        if handle.is_key_down(KeyboardKey::KEY_A) {
             self.position.x -= self.velocity.x
         }
 
@@ -79,13 +79,6 @@ impl RenderHandle for Player {
         };
 
         d.draw_rectangle_pro(rect, origin, self.orientation, entities::PLAYER_COLOR);
-        d.draw_text(
-            &format!("x: {:?} y: {:?}", self.position.x, self.position.y),
-            window::WINDOW_TOP_LEFT_X + window::WINDOW_PADDING,
-            window::WINDOW_TOP_LEFT_Y + window::WINDOW_PADDING,
-            font::STANDARD_TEXT_SIZE,
-            font::STANDARD_TEXT_COLOR,
-        );
     }
 }
 
