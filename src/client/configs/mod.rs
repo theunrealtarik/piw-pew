@@ -11,7 +11,7 @@ pub mod window {
     pub const WINDOW_HEIGHT: i32 = 600;
     pub const WINDOW_WIDTH: i32 = 800;
     pub const WINDOW_PADDING: i32 = 20;
-    pub const WINDOW_BACKGROUND_COLOR: Color = Color::new(27, 27, 27, 255);
+    pub const WINDOW_BACKGROUND_COLOR: Color = Color::new(17, 18, 19, 255);
 
     pub const WINDOW_TOP_RIGHT_X: i32 = WINDOW_WIDTH;
     pub const WINDOW_TOP_RIGHT_Y: i32 = 0;

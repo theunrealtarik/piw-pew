@@ -16,15 +16,15 @@ name = "lib"
 path = "./src/lib/mod.rs"
 
 [dependencies]
-nalgebra = "0.32.3"
+nalgebra = { version = "0.32.3", features = ["serde-serialize"] }
+ncollide2d = "0.33.0"
+raylib = { version = "3.7" }
 log = "0.4"
 env_logger = "^0.11.2"
 renet = "0.0.14"
 rmp-serde = "1.1.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0.196"
-raylib = { version = "3.7" }
-ncollide2d = "0.33.0"
 strum_macros = "0.26.1"
 strum = "0.26.1"
 

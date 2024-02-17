@@ -1,12 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 extern crate rmp_serde as rmps;
+extern crate serde;
+extern crate serde_derive;
 
 use lib::logging::Logger;
 use lib::net::{DELTA_TIME, PROTOCOL_ID};
+use lib::packets::Tile;
+
+use nalgebra::Point2;
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
     ClientId, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
@@ -46,7 +48,6 @@ fn main() {
     let port = 6969;
 
     let public_addr = SocketAddr::new(IpAddr::V4(addr), port);
-
     let connection_config = ConnectionConfig::default();
 
     let map = match Map::load("default.map") {
@@ -105,6 +106,8 @@ fn main() {
                         state.clients_count,
                         transport.max_clients()
                     );
+
+                    server.send_message(client_id, DefaultChannel::ReliableOrdered, "map");
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
                     state.clients_count -= 1;
@@ -126,16 +129,9 @@ fn main() {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Tile {
-    Wall,
-    Flag,
-    Empty,
-}
-
 #[derive(Debug)]
 struct Map {
-    tiles: HashMap<(usize, usize), Tile>,
+    tiles: HashMap<Point2<usize>, Tile>,
 }
 
 impl Map {
@@ -144,12 +140,12 @@ impl Map {
 
         log::debug!("{:?}", map_path);
 
+        let mut map = HashMap::new();
         match File::open(map_path) {
             Ok(ref mut file) => {
                 let mut buffer = String::new();
                 match file.read_to_string(&mut buffer) {
                     Ok(_bytes) => {
-                        let mut map = HashMap::new();
                         for (y, line) in buffer.lines().enumerate() {
                             for (x, symbol) in line.chars().enumerate() {
                                 let tile = match symbol {

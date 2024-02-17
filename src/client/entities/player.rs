@@ -75,7 +75,7 @@ impl Render for Player {
             window::WINDOW_TOP_LEFT_Y + window::WINDOW_PADDING,
             font::STANDARD_TEXT_SIZE,
             font::STANDARD_TEXT_COLOR,
-        )
+        );
     }
 }
 
