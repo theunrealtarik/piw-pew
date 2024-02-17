@@ -47,34 +47,18 @@ fn main() {
         configs::window::WINDOW_HEIGHT,
     );
 
-    let (mut handle, thread) = window.build();
-
-    let texture = match handle.load_texture(&thread, "assets/WPN_AKA") {
-        Ok(texture) => texture,
+    let r = match GameAssets::load(window.build(), &current_dir().unwrap().join("assets")) {
+        Ok(assets) => assets,
         Err(_) => {
-            log::error!("failed to load texture");
+            log::error!("failed to load assets");
             std::process::exit(1);
         }
     };
 
-    while !handle.window_should_close() {
-        let mut d = handle.begin_drawing(&thread);
+    let net = GameNetwork::new(transport, client);
+    let mut game = Game::new(r.handle, r.thread, r.assets, net);
 
-        d.draw_texture(&texture, 0, 0, Color::WHITE);
+    while !game.handle.window_should_close() {
+        game.run();
     }
-
-    // let r = match GameAssets::load(r, &current_dir().unwrap().join("assets")) {
-    //     Ok(assets) => assets,
-    //     Err(_) => {
-    //         log::error!("failed to load assets");
-    //         std::process::exit(1);
-    //     }
-    // };
-    //
-    // let net = GameNetwork::new(transport, client);
-    // let mut game = Game::new(r.handle, r.thread, r.assets, net);
-    //
-    // while !game.handle.window_should_close() {
-    //     game.run();
-    // }
 }
