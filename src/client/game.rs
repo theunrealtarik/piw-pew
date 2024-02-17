@@ -5,120 +5,116 @@ use crate::entities::Player;
 
 use std::{
     collections::HashMap,
-    io::{Error, ErrorKind},
+    fs::File,
+    io::{Error, ErrorKind, Read, Write},
+    net::{SocketAddr, UdpSocket},
     path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
     usize,
 };
 
-use lib::core::{Render, Update};
-use lib::net::DELTA_TIME;
+use lib::core::{AssetsHandle, RenderHandle, UpdateHandle};
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
 };
-use renet::{transport::NetcodeClientTransport, RenetClient};
+use renet::{
+    transport::{ClientAuthentication, NetcodeClientTransport, NetcodeError},
+    ConnectionConfig, RenetClient,
+};
 
 use strum::VariantArray;
 use strum_macros::{Display, EnumIter, VariantArray};
+use uuid::Uuid;
+
+use serde;
 
 pub struct GameState {
     player: Player,
 }
 
 pub struct Game {
-    pub menu: Menu,
     pub local: GameState,
-    pub handle: RaylibHandle,
-    pub thread: RaylibThread,
-    pub assets: Assets,
-    pub network: GameNetwork,
+    pub assets: Arc<Assets>,
 }
 
 impl Game {
-    pub fn new(
-        handle: RaylibHandle,
-        thread: RaylibThread,
-        assets: Assets,
-        network: GameNetwork,
-    ) -> Self {
+    pub fn new(assets: Arc<Assets>, settings: GameSettings) -> Self {
         Self {
-            menu: Menu {},
+            assets: Arc::clone(&assets),
             local: GameState {
-                player: Player::new(),
+                player: Player::new(settings.username, Arc::clone(&assets)),
             },
-            handle,
-            thread,
-            assets,
-            network,
         }
     }
+}
 
-    pub fn update(&mut self) {
-        if self.network.client.is_connected() {
-            // revieve messages
-
-            self.local.player.update(&mut self.handle);
-        }
+impl UpdateHandle for Game {
+    fn update(&mut self, handle: &RaylibHandle) {
+        self.local.player.update(handle);
     }
+}
 
-    pub fn render(&mut self) {
-        let mut d = self.handle.begin_drawing(&self.thread);
+impl RenderHandle for Game {
+    fn render(&mut self, d: &mut RaylibDrawHandle) {
         d.clear_background(window::WINDOW_BACKGROUND_COLOR);
-
-        if self.network.client.is_connecting() {
-            self.menu.render(&mut d);
-        } else if self.network.client.is_connected() {
-            d.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
-
-            // entites
-            self.local.player.render(&mut d);
-        }
+        d.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
+        self.local.player.render(d);
     }
+}
 
-    pub fn run(&mut self) {
-        let delta_time = DELTA_TIME;
-        self.network.client.update(delta_time);
-        self.network
-            .transport
-            .update(delta_time, &mut self.network.client)
-            .unwrap();
+impl AssetsHandle for Game {
+    type GameAssets = Arc<Assets>;
 
-        self.update();
-        self.render();
-
-        match self
-            .network
-            .transport
-            .send_packets(&mut self.network.client)
-        {
-            Ok(_) => {}
-            Err(err) => {
-                log::error!("failed to send packets");
-                log::error!("{:#?}", err);
-            }
-        };
-        std::thread::sleep(delta_time);
+    fn get_assets(&self) -> Self::GameAssets {
+        Arc::clone(&self.assets)
     }
 }
 
 pub struct GameNetwork {
-    transport: NetcodeClientTransport,
-    client: RenetClient,
+    pub client: RenetClient,
+    pub transport: NetcodeClientTransport,
+    pub current_time: Duration,
+    pub authentication: ClientAuthentication,
+    pub uuid: u64,
+    pub protocol_id: u64,
 }
 
 impl GameNetwork {
-    pub fn new(transport: NetcodeClientTransport, client: RenetClient) -> Self {
-        Self { transport, client }
+    pub fn connect(
+        server_addr: SocketAddr,
+        current_time: Duration,
+        protocol_id: u64,
+    ) -> Result<Self, NetcodeError> {
+        let uuid = u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap());
+
+        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let client = RenetClient::new(ConnectionConfig::default());
+
+        let authentication = ClientAuthentication::Unsecure {
+            server_addr,
+            client_id: uuid,
+            user_data: None,
+            protocol_id,
+        };
+
+        match NetcodeClientTransport::new(current_time, authentication.clone(), socket) {
+            Ok(transport) => Ok(Self {
+                client,
+                transport,
+                current_time,
+                authentication,
+                uuid,
+                protocol_id,
+            }),
+            Err(err) => Err(err),
+        }
     }
 }
 
-pub struct Menu;
-impl Render for Menu {
-    fn render(&mut self, d: &mut RaylibDrawHandle) {}
-}
-
 macro_rules! asset {
-        ($name:ident { $($variant:ident),* $(,)? }) => {
+        ($filetype:literal, $name:ident { $($variant:ident),* $(,)? }) => {
             #[allow(non_camel_case_types)]
             #[derive(Debug, Display, EnumIter, VariantArray, Copy, Clone, PartialEq, Eq, Hash)]
             pub enum $name {
@@ -126,31 +122,42 @@ macro_rules! asset {
             }
 
             impl $name {
+                pub fn filename(&self) -> String {
+                   format!("{}.{}", self.to_string(), $filetype)
+                }
+
                 pub fn as_path(&self) -> PathBuf {
-                    std::env::current_dir().unwrap().join("assets").join(self.to_string())
+                    std::env::current_dir().unwrap().join("assets").join(self.filename())
                 }
             }
         };
     }
 
-asset!(FONT { FNT_POPPINS });
-asset!(TEXTURE {
-    WPN_AKA,
-    WPN_DEAN,
-    WPN_PRRR,
-    WPN_SHOTPEW,
-    PIK_AMMO_BOX,
-    PIK_OLIVE_OIL,
-    PIK_KEVLAR,
-    UI_LOADING
-});
+asset!("ttf", FONT { FNT_POPPINS });
+asset!(
+    "png",
+    TEXTURE {
+        WPN_AKA,
+        WPN_DEAN,
+        WPN_PRRR,
+        WPN_SHOTPEW,
+        PIK_AMMO_BOX,
+        PIK_OLIVE_OIL,
+        PIK_KEVLAR,
+        UI_LOADING,
+        UI_LOGO
+    }
+);
 
-asset!(SOUND {
-    SND_DEATH,
-    SND_COLLECT,
-    SND_WIN,
-    SND_LOSE
-});
+asset!(
+    "wav",
+    SOUND {
+        SND_DEATH,
+        SND_COLLECT,
+        SND_WIN,
+        SND_LOSE
+    }
+);
 
 #[derive(Debug)]
 pub struct Assets {
@@ -170,67 +177,149 @@ impl Assets {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct GameAssets {
-    pub handle: RaylibHandle,
-    pub thread: RaylibThread,
     pub assets: Assets,
 }
 
 impl GameAssets {
-    pub fn load(r: (RaylibHandle, RaylibThread), path: &PathBuf) -> Result<Self, Error> {
-        let (handle, thread) = r;
-
-        let assets = Assets::new();
-
+    pub fn load(
+        handle: &mut RaylibHandle,
+        thread: &RaylibThread,
+        path: &PathBuf,
+    ) -> Result<Self, Error> {
+        let mut assets = Assets::new();
         if Path::exists(path) {
             log::debug!("{:?}", path);
 
-            // for texture in TEXTURE::VARIANTS {
-            //     let path = texture.as_path();
-            //     let texture = texture.clone();
-            //
-            //     if Path::exists(&path) {
-            //         log::debug!("{:?}", path);
-            //
-            //         match handle.load_texture(&thread, path.to_str().unwrap()) {
-            //             Ok(texture_buffer) => {
-            //                 assets.textures.insert(texture, *texture_buffer);
-            //             }
-            //             Err(err) => {
-            //                 log::error!("failed to load texture {:#?} to video memory", texture);
-            //                 log::error!("{:?}", err);
-            //                 std::process::exit(1);
-            //             }
-            //         }
-            //     }
-            // }
-            // for font in FONT::VARIANTS {
-            //     let path = font.as_path();
-            //     let font = font.clone();
-            //
-            //     if Path::exists(&path) {
-            //         log::debug!("{:?}", path);
-            //
-            //         match handle.load_font(&thread, path.to_str().unwrap()) {
-            //             Ok(font_buffer) => {
-            //                 assets.fonts.insert(font, *font_buffer);
-            //             }
-            //             Err(err) => {
-            //                 log::error!("failed to load texture {:#?} to video memory", font);
-            //                 log::error!("{:?}", err);
-            //                 std::process::exit(1);
-            //             }
-            //         }
-            //     }
-            // }
+            for texture in TEXTURE::VARIANTS {
+                let path = texture.as_path();
+                let texture = texture.clone();
 
-            Ok(Self {
-                handle,
-                thread,
-                assets,
-            })
+                if Path::exists(&path) {
+                    log::debug!("{:?}", path);
+
+                    match handle.load_texture(&thread, path.to_str().unwrap()) {
+                        Ok(texture_buffer) => {
+                            log::info!("texture loaded {:?}", path);
+                            assets.textures.insert(texture, texture_buffer);
+                        }
+                        Err(err) => {
+                            log::error!("failed to load texture {:#?} to video memory", texture);
+                            log::error!("{:?}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+            for font in FONT::VARIANTS {
+                let path = font.as_path();
+                let font = font.clone();
+
+                if Path::exists(&path) {
+                    log::debug!("{:?}", path);
+
+                    match handle.load_font(&thread, path.to_str().unwrap()) {
+                        Ok(font_buffer) => {
+                            log::info!("font loaded {:?}", path);
+                            assets.fonts.insert(font, font_buffer);
+                        }
+                        Err(err) => {
+                            log::error!("failed to load texture {:#?} to video memory", font);
+                            log::error!("{:?}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+
+            Ok(Self { assets: assets })
         } else {
             log::error!("couldn't locate {:?}", path);
             Err(Error::new(ErrorKind::NotFound, ""))
+        }
+    }
+}
+
+// game menu
+pub struct GameMenu {
+    assets: Arc<Assets>,
+}
+
+impl GameMenu {
+    pub fn new(assets: Arc<Assets>) -> Self {
+        Self { assets }
+    }
+}
+
+impl RenderHandle for GameMenu {
+    fn render(&mut self, d: &mut RaylibDrawHandle) {
+        let assets = self.get_assets();
+
+        match assets.textures.get(&TEXTURE::UI_LOGO) {
+            Some(buffer) => {
+                // let buffer: Texture2D = *buffer;
+                // d.draw_texture_ex(
+                //     &buffer,
+                //     RVector2 {
+                //         x: window::WINDOW_CENTER_X,
+                //         y: window::WINDOW_CENTER_Y,
+                //     },
+                //     0.0,
+                //     1.0,
+                //     Color::WHITE,
+                // );
+            }
+            None => {}
+        }
+    }
+}
+
+impl AssetsHandle for GameMenu {
+    type GameAssets = Arc<Assets>;
+    fn get_assets(&self) -> Self::GameAssets {
+        Arc::clone(&self.assets)
+    }
+}
+
+// game settings
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct GameSettings {
+    username: String,
+}
+
+impl GameSettings {
+    pub fn load(path: &PathBuf) -> Self {
+        let default_user_settings = GameSettings {
+            username: String::from("Player"),
+        };
+        match File::open(&path) {
+            Ok(ref mut file) => {
+                let mut buffer = String::new();
+                match file.read_to_string(&mut buffer) {
+                    Ok(_bytes) => {
+                        if let Ok(settings) = serde_json::from_str::<Self>(&buffer) {
+                            return settings;
+                        }
+
+                        return default_user_settings;
+                    }
+                    Err(_) => default_user_settings,
+                }
+            }
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => {
+                    log::error!("`settings.json` not found");
+                    log::warn!("creating a settings file...");
+
+                    let mut file = File::create(&path).unwrap();
+                    let buffer = serde_json::to_string(&default_user_settings).unwrap();
+                    file.write_all(buffer.as_bytes()).unwrap();
+                    default_user_settings
+                }
+                _ => {
+                    log::error!("failed to create `settings.json` file in {:?}", path);
+                    default_user_settings
+                }
+            },
         }
     }
 }

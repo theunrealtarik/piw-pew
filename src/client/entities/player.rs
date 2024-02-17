@@ -1,30 +1,40 @@
-use crate::configs::{entities, font, window};
+use std::sync::Arc;
+
+use crate::{
+    configs::{entities, font, window},
+    game::Assets,
+};
 use lib::core::*;
 use nalgebra::{self, Point2, Scale2, Vector2};
 use raylib::prelude::*;
 
+#[allow(dead_code)]
 pub struct Player {
+    name: String,
     orientation: f32,
     position: Point2<f32>,
     scale: Scale2<f32>,
     velocity: Vector2<f32>,
     hp: i8,
+    assets: Arc<Assets>,
 }
 
 impl Player {
-    pub fn new() -> Self {
+    pub fn new(name: String, assets: Arc<Assets>) -> Self {
         Self {
+            name,
             orientation: 0.0,
             position: Point2::new(0.0, 0.0),
             scale: Scale2::new(40.0, 40.0),
             velocity: Vector2::new(10.0, 10.0),
             hp: 100,
+            assets,
         }
     }
 }
 
-impl Update for Player {
-    fn update(&mut self, handle: &mut RaylibHandle) {
+impl UpdateHandle for Player {
+    fn update(&mut self, handle: &RaylibHandle) {
         if handle.is_key_down(KeyboardKey::KEY_W) {
             self.position.y -= self.velocity.y
         }
@@ -60,7 +70,7 @@ impl Update for Player {
     }
 }
 
-impl Render for Player {
+impl RenderHandle for Player {
     fn render(&mut self, d: &mut RaylibDrawHandle) {
         let rect = Rectangle::new(self.position.x, self.position.y, self.scale.x, self.scale.y);
         let origin = ffi::Vector2 {
@@ -76,6 +86,14 @@ impl Render for Player {
             font::STANDARD_TEXT_SIZE,
             font::STANDARD_TEXT_COLOR,
         );
+    }
+}
+
+impl AssetsHandle for Player {
+    type GameAssets = Arc<Assets>;
+
+    fn get_assets(&self) -> Self::GameAssets {
+        Arc::clone(&self.assets)
     }
 }
 

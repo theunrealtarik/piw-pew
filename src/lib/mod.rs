@@ -34,6 +34,7 @@ pub mod packets {
 pub mod types {
     extern crate nalgebra as na;
 
+    pub type RVector2 = raylib::core::math::Vector2;
     pub type Color = raylib::color::Color;
 }
 
@@ -41,12 +42,19 @@ pub mod core {
     use nalgebra::{Point2, Scale2, Vector2};
     use raylib::prelude::*;
 
-    pub trait Update {
-        fn update(&mut self, handle: &mut RaylibHandle);
+    pub trait UpdateHandle {
+        fn update(&mut self, handle: &RaylibHandle);
     }
 
-    pub trait Render {
-        fn render(&mut self, draw_handle: &mut RaylibDrawHandle);
+    pub trait RenderHandle {
+        fn render(&mut self, draw_handle: &mut RaylibDrawHandle)
+        where
+            Self: AssetsHandle;
+    }
+
+    pub trait AssetsHandle {
+        type GameAssets;
+        fn get_assets(&self) -> Self::GameAssets;
     }
 
     pub trait Entity {

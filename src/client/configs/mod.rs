@@ -22,6 +22,9 @@ pub mod window {
     pub const WINDOW_BOTTOM_RIGHT_Y: i32 = WINDOW_HEIGHT;
     pub const WINDOW_BOTTOM_LEFT_X: i32 = 0;
     pub const WINDOW_BOTTOM_LEFT_Y: i32 = WINDOW_HEIGHT;
+
+    pub const WINDOW_CENTER_X: f32 = WINDOW_WIDTH as f32 / 2.0;
+    pub const WINDOW_CENTER_Y: f32 = WINDOW_HEIGHT as f32 / 2.0;
 }
 
 pub mod entities {
