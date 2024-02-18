@@ -11,7 +11,7 @@ use lib::{
 
 use core::{NetRenderHandle, NetUpdateHandle, RenderHandle};
 
-use raylib::drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D, RaylibMode2DExt};
+use raylib::drawing::{RaylibDraw, RaylibMode2DExt};
 use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
 
 use env_logger;

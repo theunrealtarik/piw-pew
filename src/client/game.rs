@@ -4,7 +4,7 @@ use crate::entities::{GameWorldTile, Player};
 
 use lib::{
     packets::GameNetworkPacket,
-    types::{RVector2, Wall},
+    types::{RVector2, Tile},
 };
 use raylib::{
     core::{text::Font, texture::Texture2D},
@@ -65,8 +65,9 @@ impl NetUpdateHandle for Game {
                         let mut tiles = HashMap::new();
                         for ((x, y), tile) in map {
                             let tile_texture = match tile {
-                                Wall::WALL_SIDE => TEXTURE::ENV_WALL_SIDE,
-                                Wall::WALL_TOP => TEXTURE::ENV_WALL_TOP,
+                                Tile::WALL_SIDE => TEXTURE::TILE_WALL_SIDE,
+                                Tile::WALL_TOP => TEXTURE::TILE_WALL_TOP,
+                                Tile::GROUND => TEXTURE::TILE_GROUND,
                             };
                             // hydration
                             if let Some(buffer) = assets.textures.get(&tile_texture) {
@@ -196,9 +197,9 @@ asset!(
         PIK_AMMO_BOX,
         PIK_OLIVE_OIL,
         PIK_KEVLAR,
-        ENV_WALL_SIDE,
-        ENV_WALL_TOP,
-        ENV_GROUND,
+        TILE_WALL_SIDE,
+        TILE_WALL_TOP,
+        TILE_GROUND,
         UI_LOADING,
         UI_LOGO
     }

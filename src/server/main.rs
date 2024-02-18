@@ -4,7 +4,7 @@ extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
-use lib::types::Wall;
+use lib::types::{Tile, Tiles};
 use rmps::Serializer;
 use serde::{Deserialize, Serialize};
 
@@ -139,7 +139,7 @@ fn main() {
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct Map {
-    pub tiles: HashMap<(usize, usize), Wall>,
+    pub tiles: Tiles,
 }
 
 impl Map {
@@ -148,7 +148,7 @@ impl Map {
 
         log::debug!("{:?}", map_path);
 
-        let mut map: HashMap<(usize, usize), Wall> = HashMap::new();
+        let mut map: Tiles = HashMap::new();
         match File::open(map_path) {
             Ok(ref mut file) => {
                 let mut buffer = String::new();
@@ -157,9 +157,9 @@ impl Map {
                         for (y, line) in buffer.lines().enumerate() {
                             for (x, symbol) in line.chars().enumerate() {
                                 let tile = match symbol {
-                                    'S' => Wall::WALL_SIDE,
-                                    'T' => Wall::WALL_TOP,
-                                    _ => continue,
+                                    'S' => Tile::WALL_SIDE,
+                                    'T' => Tile::WALL_TOP,
+                                    _ => Tile::GROUND,
                                 };
                                 map.insert((x, y), tile);
                             }
