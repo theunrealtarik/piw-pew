@@ -32,6 +32,7 @@ pub mod entities {
 
     pub const PLAYER_COLOR: Color = Color::new(246, 251, 255, 255);
     pub const ENEMY_COLOR: Color = Color::new(245, 169, 169, 255);
+    pub const WOLD_TILE_SIZE: f32 = 40.0;
 }
 
 pub mod font {

@@ -1,11 +1,10 @@
-#![allow(dead_code)]
-
 use crate::configs::window;
 use crate::entities::Player;
 
 use lib::{
-    core::{AssetsHandle, RenderHandle, UpdateHandle},
-    types::RVector2,
+    core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle},
+    packets::GameNetworkPacket,
+    types::{RVector2, Tile},
 };
 use raylib::{
     core::{text::Font, texture::Texture2D},
@@ -13,16 +12,21 @@ use raylib::{
 };
 use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport, NetcodeError},
-    ConnectionConfig, RenetClient,
+    ConnectionConfig, DefaultChannel, RenetClient,
 };
-use serde;
+
+extern crate rmp_serde as rmps;
+extern crate serde;
+extern crate serde_derive;
+
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fs::File,
     io::{Error, ErrorKind, Read, Write},
     net::{SocketAddr, UdpSocket},
     path::{Path, PathBuf},
-    sync::Arc,
+    rc::Rc,
     time::Duration,
 };
 use strum::VariantArray;
@@ -31,43 +35,108 @@ use uuid::Uuid;
 
 pub struct GameState {
     player: Player,
+    world: GameWorld,
 }
 
 pub struct Game {
     pub local: GameState,
-    pub assets: Arc<Assets>,
+    pub assets: Rc<RefCell<Assets>>,
 }
 
 impl Game {
-    pub fn new(assets: Arc<Assets>, settings: GameSettings) -> Self {
+    pub fn new(assets: Rc<RefCell<Assets>>, settings: GameSettings) -> Self {
         Self {
-            assets: Arc::clone(&assets),
+            assets: Rc::clone(&assets),
             local: GameState {
-                player: Player::new(settings.username, Arc::clone(&assets)),
+                player: Player::new(settings.username, Rc::clone(&assets)),
+                world: GameWorld::new(),
             },
         }
     }
 }
 
-impl UpdateHandle for Game {
-    fn update(&mut self, handle: &RaylibHandle) {
+impl NetUpdateHandle for Game {
+    type Network = GameNetwork;
+
+    fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network) {
+        let assets = self.get_assets();
+
+        while let Some(message) = network
+            .client
+            .receive_message(DefaultChannel::ReliableOrdered)
+        {
+            if let Ok(packet) = rmp_serde::from_slice::<GameNetworkPacket>(&message) {
+                match packet {
+                    GameNetworkPacket::NET_WORLD_MAP(map) => {
+                        let mut tiles = HashMap::new();
+                        for ((x, y), tile) in map {
+                            let tile_texture = match tile {
+                                Tile::WALL_SIDE => TEXTURE::ENV_WALL_SIDE,
+                                Tile::WALL_TOP => TEXTURE::ENV_WALL_TOP,
+                                _ => continue,
+                            };
+
+                            // let tile_buffer: Texture2D = assets.textures.remove(&tile_texture).unwrap();
+                            // tiles.insert(
+                            //     (x, y),
+                            //     GameWorldTile::new(
+                            //         tile,
+                            //         tile_buffer,
+                            //         x as f32,
+                            //         y as f32,
+                            //         40.0,
+                            //         40.0,
+                            //     ),
+                            // );
+                        }
+
+                        self.local.world.tiles = tiles;
+                    }
+                    GameNetworkPacket::NET_PLAYER_POSITION(_) => {}
+                    GameNetworkPacket::NET_PLAYER_ORIENTATION_ANGLE(_) => {}
+                    GameNetworkPacket::NET_PLAYER_NAME(_) => {}
+                }
+            };
+        }
+
         self.local.player.update(handle);
     }
 }
 
-impl RenderHandle for Game {
-    fn render(&mut self, d: &mut RaylibDrawHandle) {
+impl NetRenderHandle for Game {
+    type Network = GameNetwork;
+    fn net_render(&mut self, d: &mut RaylibDrawHandle, network: &mut Self::Network) {
         d.clear_background(window::WINDOW_BACKGROUND_COLOR);
         d.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
+
+        let assets = self.get_assets();
+        let mut assets = assets.borrow_mut();
+
+        if self.local.world.tiles.len() > 0 {
+            for ((x, y), tile) in &self.local.world.tiles {
+                let tile_texture = match tile.variant {
+                    Tile::WALL_SIDE => TEXTURE::ENV_WALL_SIDE,
+                    Tile::WALL_TOP => TEXTURE::ENV_WALL_TOP,
+                    _ => TEXTURE::ENV_GROUND,
+                };
+                let position = RVector2::new(*x as f32, *y as f32);
+
+                if let Some(texture) = assets.textures.remove(&tile_texture) {
+                    let tile_buffer: Texture2D = texture;
+                    d.draw_texture_ex(tile_buffer, position, 0.0, 0.05, Color::WHITE);
+                };
+            }
+        }
+
         self.local.player.render(d);
     }
 }
 
 impl AssetsHandle for Game {
-    type GameAssets = Arc<Assets>;
+    type GameAssets = Rc<RefCell<Assets>>;
 
     fn get_assets(&self) -> Self::GameAssets {
-        Arc::clone(&self.assets)
+        Rc::clone(&self.assets)
     }
 }
 
@@ -143,6 +212,9 @@ asset!(
         PIK_AMMO_BOX,
         PIK_OLIVE_OIL,
         PIK_KEVLAR,
+        ENV_WALL_SIDE,
+        ENV_WALL_TOP,
+        ENV_GROUND,
         UI_LOADING,
         UI_LOGO
     }
@@ -173,7 +245,6 @@ impl Assets {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct GameAssets {
     pub assets: Assets,
@@ -230,7 +301,7 @@ impl GameAssets {
                 }
             }
 
-            Ok(Self { assets: assets })
+            Ok(Self { assets })
         } else {
             log::error!("couldn't locate {:?}", path);
             Err(Error::new(ErrorKind::NotFound, ""))
@@ -240,11 +311,11 @@ impl GameAssets {
 
 // game menu
 pub struct GameMenu {
-    assets: Arc<Assets>,
+    assets: Rc<RefCell<Assets>>,
 }
 
 impl GameMenu {
-    pub fn new(assets: Arc<Assets>) -> Self {
+    pub fn new(assets: Rc<RefCell<Assets>>) -> Self {
         Self { assets }
     }
 }
@@ -252,6 +323,7 @@ impl GameMenu {
 impl RenderHandle for GameMenu {
     fn render(&mut self, d: &mut RaylibDrawHandle) {
         let assets = self.get_assets();
+        let assets = assets.borrow();
 
         match (
             assets.textures.get(&TEXTURE::UI_LOGO),
@@ -319,9 +391,9 @@ impl RenderHandle for GameMenu {
 }
 
 impl AssetsHandle for GameMenu {
-    type GameAssets = Arc<Assets>;
+    type GameAssets = Rc<RefCell<Assets>>;
     fn get_assets(&self) -> Self::GameAssets {
-        Arc::clone(&self.assets)
+        Rc::clone(&self.assets)
     }
 }
 
@@ -365,6 +437,36 @@ impl GameSettings {
                     default_user_settings
                 }
             },
+        }
+    }
+}
+
+// game world
+#[derive(Debug)]
+struct GameWorldTile {
+    variant: Tile,
+    rectangle: Rectangle,
+    texture: Texture2D,
+}
+
+impl GameWorldTile {
+    fn new(variant: Tile, texture: Texture2D, x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self {
+            variant,
+            rectangle: Rectangle::new(x, y, width, height),
+            texture,
+        }
+    }
+}
+
+struct GameWorld {
+    tiles: HashMap<(usize, usize), GameWorldTile>,
+}
+
+impl GameWorld {
+    fn new() -> Self {
+        Self {
+            tiles: HashMap::new(),
         }
     }
 }

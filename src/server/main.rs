@@ -4,11 +4,14 @@ extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
+use lib::types::Tile;
+use rmps::Serializer;
+use serde::{Deserialize, Serialize};
+
 use lib::logging::Logger;
 use lib::net::{DELTA_TIME, PROTOCOL_ID};
-use lib::packets::Tile;
+use lib::packets::GameNetworkPacket;
 
-use nalgebra::Point2;
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
     ClientId, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
@@ -61,6 +64,8 @@ fn main() {
         }
     };
 
+    let map_buffer = map.serialized();
+
     let mut server: RenetServer = RenetServer::new(connection_config);
     let mut state = ServerState {
         clients_count: 0,
@@ -107,7 +112,11 @@ fn main() {
                         transport.max_clients()
                     );
 
-                    server.send_message(client_id, DefaultChannel::ReliableOrdered, "map");
+                    server.send_message(
+                        client_id,
+                        DefaultChannel::ReliableOrdered,
+                        map_buffer.clone(),
+                    );
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
                     state.clients_count -= 1;
@@ -123,15 +132,14 @@ fn main() {
             }
         }
 
-        server.broadcast_message(DefaultChannel::ReliableOrdered, "server message");
         transport.send_packets(&mut server);
         std::thread::sleep(delta_time);
     }
 }
 
-#[derive(Debug)]
-struct Map {
-    tiles: HashMap<Point2<usize>, Tile>,
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct Map {
+    pub tiles: HashMap<(usize, usize), Tile>,
 }
 
 impl Map {
@@ -140,7 +148,7 @@ impl Map {
 
         log::debug!("{:?}", map_path);
 
-        let mut map = HashMap::new();
+        let mut map: HashMap<(usize, usize), Tile> = HashMap::new();
         match File::open(map_path) {
             Ok(ref mut file) => {
                 let mut buffer = String::new();
@@ -149,23 +157,34 @@ impl Map {
                         for (y, line) in buffer.lines().enumerate() {
                             for (x, symbol) in line.chars().enumerate() {
                                 let tile = match symbol {
-                                    '#' => Tile::Wall,
-                                    'F' => Tile::Flag,
-                                    '.' => Tile::Empty,
-                                    _ => Tile::Empty,
+                                    'S' => Tile::WALL_SIDE,
+                                    'T' => Tile::WALL_TOP,
+                                    '.' => Tile::GROUND,
+                                    'F' => Tile::FLAG,
+                                    _ => Tile::GROUND,
                                 };
                                 map.insert((x, y), tile);
                             }
                         }
 
-                        Ok(Self {
-                            tiles: HashMap::new(),
-                        })
+                        log::debug!("\n{}", buffer);
+                        Ok(Self { tiles: map })
                     }
                     Err(err) => Err(err),
                 }
             }
             Err(err) => Err(err),
         }
+    }
+
+    fn serialized(&self) -> Vec<u8> {
+        let packet = GameNetworkPacket::NET_WORLD_MAP(self.tiles.clone());
+        let mut map_buffer = Vec::new();
+
+        packet
+            .serialize(&mut Serializer::new(&mut map_buffer))
+            .unwrap();
+
+        map_buffer
     }
 }

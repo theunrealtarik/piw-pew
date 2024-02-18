@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    configs::{entities, font, window},
+    configs::{entities, window},
     game::Assets,
 };
 use lib::core::*;
@@ -16,11 +16,11 @@ pub struct Player {
     scale: Scale2<f32>,
     velocity: Vector2<f32>,
     hp: i8,
-    assets: Arc<Assets>,
+    assets: Rc<RefCell<Assets>>,
 }
 
 impl Player {
-    pub fn new(name: String, assets: Arc<Assets>) -> Self {
+    pub fn new(name: String, assets: Rc<RefCell<Assets>>) -> Self {
         Self {
             name,
             orientation: 0.0,
@@ -83,10 +83,10 @@ impl RenderHandle for Player {
 }
 
 impl AssetsHandle for Player {
-    type GameAssets = Arc<Assets>;
+    type GameAssets = Rc<RefCell<Assets>>;
 
     fn get_assets(&self) -> Self::GameAssets {
-        Arc::clone(&self.assets)
+        Rc::clone(&self.assets)
     }
 }
 

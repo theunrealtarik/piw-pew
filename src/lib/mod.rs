@@ -1,8 +1,10 @@
+#![allow(non_camel_case_types)]
+
 pub mod net {
     use std::time::Duration;
 
     pub const PROTOCOL_ID: u64 = 69;
-    pub const DELTA_TIME: Duration = Duration::from_millis(12);
+    pub const DELTA_TIME: Duration = Duration::from_millis(16);
 }
 
 pub mod logging {
@@ -21,21 +23,34 @@ pub mod logging {
 
 pub mod packets {
     extern crate rmp_serde as rmps;
+    use nalgebra::Vector2;
     use serde::{Deserialize, Serialize};
+    use std::collections::HashMap;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-    pub enum Tile {
-        Wall,
-        Flag,
-        Empty,
+    #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+    pub enum GameNetworkPacket {
+        NET_WORLD_MAP(HashMap<(usize, usize), super::types::Tile>),
+        NET_PLAYER_POSITION(Vector2<usize>),
+        NET_PLAYER_ORIENTATION_ANGLE(usize),
+        NET_PLAYER_NAME(String),
     }
 }
 
 pub mod types {
     extern crate nalgebra as na;
+    use serde::{Deserialize, Serialize};
 
     pub type RVector2 = raylib::core::math::Vector2;
     pub type Color = raylib::color::Color;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+    pub enum Tile {
+        WALL_SIDE,
+        WALL_TOP,
+        GROUND,
+        FLAG,
+    }
+    pub type MapTiles = std::collections::HashMap<(usize, usize), Tile>;
 }
 
 pub mod core {
@@ -48,6 +63,18 @@ pub mod core {
 
     pub trait RenderHandle {
         fn render(&mut self, draw_handle: &mut RaylibDrawHandle)
+        where
+            Self: AssetsHandle;
+    }
+
+    pub trait NetUpdateHandle {
+        type Network;
+        fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network);
+    }
+
+    pub trait NetRenderHandle {
+        type Network;
+        fn net_render(&mut self, draw_handle: &mut RaylibDrawHandle, network: &mut Self::Network)
         where
             Self: AssetsHandle;
     }

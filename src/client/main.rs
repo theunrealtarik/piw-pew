@@ -4,12 +4,12 @@ mod game;
 
 use configs::window;
 use lib::{
-    core::{RenderHandle, UpdateHandle},
+    core::{NetRenderHandle, NetUpdateHandle, RenderHandle},
     logging::Logger,
     net::{DELTA_TIME, PROTOCOL_ID},
 };
 use raylib::drawing::RaylibDraw;
-use std::{net::SocketAddr, sync::Arc, time::SystemTime};
+use std::{cell::RefCell, net::SocketAddr, rc::Rc, sync::Arc, time::SystemTime};
 
 use env_logger;
 use game::{Game, GameAssets, GameMenu, GameNetwork, GameSettings};
@@ -35,7 +35,7 @@ fn main() {
     let (mut handle, thread) = window.build();
     let settings = GameSettings::load(&current_dir);
 
-    let gs_loaded = match GameAssets::load(&mut handle, &thread, &current_dir.join("assets")) {
+    let ga_loaded = match GameAssets::load(&mut handle, &thread, &current_dir.join("assets")) {
         Ok(assets) => assets,
         Err(_) => {
             log::error!("failed to load assets");
@@ -43,7 +43,7 @@ fn main() {
         }
     };
 
-    let assets = Arc::new(gs_loaded.assets);
+    let assets = Rc::new(RefCell::new(ga_loaded.assets));
 
     let mut network = match GameNetwork::connect(server_addr, current_time, PROTOCOL_ID) {
         Ok(net) => {
@@ -56,8 +56,8 @@ fn main() {
         }
     };
 
-    let mut menu = GameMenu::new(Arc::clone(&assets));
-    let mut game = Game::new(Arc::clone(&assets), settings);
+    let mut menu = GameMenu::new(Rc::clone(&assets));
+    let mut game = Game::new(assets.clone(), settings);
 
     while !handle.window_should_close() {
         let delta_time = DELTA_TIME;
@@ -69,7 +69,7 @@ fn main() {
             .unwrap();
 
         if network.client.is_connected() {
-            game.update(&handle);
+            game.net_update(&handle, &mut network);
         }
 
         let mut d = handle.begin_drawing(&thread);
@@ -78,7 +78,7 @@ fn main() {
         if network.client.is_connecting() {
             menu.render(&mut d);
         } else if network.client.is_connected() {
-            game.render(&mut d);
+            game.net_render(&mut d, &mut network);
         }
 
         match network.transport.send_packets(&mut network.client) {
