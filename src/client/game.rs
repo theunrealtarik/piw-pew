@@ -1,10 +1,10 @@
 use crate::configs::{entities, window};
-use crate::entities::Player;
+use crate::entities::{GameWorldTile, Player};
 
 use lib::{
     core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle},
     packets::GameNetworkPacket,
-    types::{RVector2, Tile},
+    types::{RVector2, Wall},
 };
 use raylib::{
     core::{text::Font, texture::Texture2D},
@@ -71,9 +71,8 @@ impl NetUpdateHandle for Game {
                         let mut tiles = HashMap::new();
                         for ((x, y), tile) in map {
                             let tile_texture = match tile {
-                                Tile::WALL_SIDE => TEXTURE::ENV_WALL_SIDE,
-                                Tile::WALL_TOP => TEXTURE::ENV_WALL_TOP,
-                                _ => continue,
+                                Wall::WALL_SIDE => TEXTURE::ENV_WALL_SIDE,
+                                Wall::WALL_TOP => TEXTURE::ENV_WALL_TOP,
                             };
                             // hydration
                             if let Some(buffer) = assets.textures.get(&tile_texture) {
@@ -438,32 +437,6 @@ impl GameSettings {
 }
 
 // game world
-#[derive(Debug)]
-struct GameWorldTile {
-    texture: TEXTURE,
-    scale: f32,
-    rectangle: Rectangle,
-}
-
-impl GameWorldTile {
-    fn new(texture: TEXTURE, width: f32, height: f32, scale: f32) -> Self {
-        Self {
-            texture,
-            scale,
-            rectangle: Rectangle::new(0.0, 0.0, width, height),
-        }
-    }
-
-    fn rec_scale(&self, x: f32, y: f32) -> Rectangle {
-        Rectangle::new(
-            x,
-            y,
-            self.rectangle.width * self.scale,
-            self.rectangle.height * self.scale,
-        )
-    }
-}
-
 struct GameWorld {
     tiles: HashMap<(usize, usize), GameWorldTile>,
 }
