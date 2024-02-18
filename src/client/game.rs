@@ -205,15 +205,7 @@ asset!(
     }
 );
 
-asset!(
-    "wav",
-    SOUND {
-        SND_DEATH,
-        SND_COLLECT,
-        SND_WIN,
-        SND_LOSE
-    }
-);
+asset!("wav", SOUND {});
 
 #[derive(Debug)]
 pub struct Assets {
@@ -247,7 +239,7 @@ impl GameAssets {
 
             for texture in TEXTURE::VARIANTS {
                 let path = texture.as_path();
-                let texture = texture.clone();
+                let texture = *texture;
 
                 if Path::exists(&path) {
                     log::debug!("{:?}", path);
@@ -267,7 +259,7 @@ impl GameAssets {
             }
             for font in FONT::VARIANTS {
                 let path = font.as_path();
-                let font = font.clone();
+                let font = *font;
 
                 if Path::exists(&path) {
                     log::debug!("{:?}", path);
