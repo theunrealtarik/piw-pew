@@ -1,12 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{
-    configs::{entities, window},
-    game::Assets,
-};
-use lib::core::*;
 use nalgebra::{self, Point2, Scale2, Vector2};
 use raylib::prelude::*;
+
+use crate::configs::{window, *};
+use crate::game::Assets;
+use lib::core::*;
 
 #[allow(dead_code)]
 pub struct Player {
@@ -25,10 +24,7 @@ impl Player {
             name,
             orientation: 0.0,
             position: Point2::new(0.0, 0.0),
-            scale: Scale2::new(
-                entities::WORLD_TILE_SIZE * 0.8,
-                entities::WORLD_TILE_SIZE * 0.8,
-            ),
+            scale: Scale2::new(WORLD_TILE_SIZE * 0.8, WORLD_TILE_SIZE * 0.8),
             velocity: Vector2::new(10.0, 10.0),
             hp: 100,
             assets,
@@ -81,7 +77,7 @@ impl RenderHandle for Player {
             y: rect.height / 2.0,
         };
 
-        d.draw_rectangle_pro(rect, origin, self.orientation, entities::PLAYER_COLOR);
+        d.draw_rectangle_pro(rect, origin, self.orientation, player::PLAYER_COLOR);
     }
 }
 

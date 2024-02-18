@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 
-pub mod net {
-    const NET_PROTOCOL_ID: u64 = 69;
-}
+pub static WORLD_TILE_SIZE: f32 = 50.0;
 
 pub mod window {
     use lib::types::Color;
@@ -27,12 +25,11 @@ pub mod window {
     pub const WINDOW_CENTER_Y: f32 = WINDOW_HEIGHT as f32 / 2.0;
 }
 
-pub mod entities {
+pub mod player {
     use lib::types::Color;
 
     pub const PLAYER_COLOR: Color = Color::new(246, 251, 255, 255);
-    pub const ENEMY_COLOR: Color = Color::new(245, 169, 169, 255);
-    pub const WORLD_TILE_SIZE: f32 = 50.0;
+    pub const PLAYER_CAMERA_OFFSET: f32 = 20.0;
 }
 
 pub mod font {

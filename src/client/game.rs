@@ -1,4 +1,4 @@
-use crate::configs::{entities, window};
+use crate::configs::{window, *};
 use crate::entities::{GameWorldTile, Player};
 
 use lib::{
@@ -78,7 +78,7 @@ impl NetUpdateHandle for Game {
                             if let Some(buffer) = assets.textures.get(&tile_texture) {
                                 let buffer: &Texture2D = buffer;
                                 let (w, h) = (buffer.width as f32, buffer.height as f32);
-                                let scale = entities::WORLD_TILE_SIZE / w;
+                                let scale = WORLD_TILE_SIZE / w;
 
                                 tiles.insert((x, y), GameWorldTile::new(tile_texture, w, h, scale));
                             }
@@ -107,10 +107,8 @@ impl NetRenderHandle for Game {
         if self.local.world.tiles.len() > 0 {
             for ((x, y), tile) in &self.local.world.tiles {
                 let texture = assets.textures.get(&tile.texture).unwrap();
-                let position = RVector2::new(
-                    *x as f32 * entities::WORLD_TILE_SIZE,
-                    *y as f32 * entities::WORLD_TILE_SIZE,
-                );
+                let position =
+                    RVector2::new(*x as f32 * WORLD_TILE_SIZE, *y as f32 * WORLD_TILE_SIZE);
                 d.draw_texture_pro(
                     texture,
                     tile.rectangle,

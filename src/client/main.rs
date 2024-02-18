@@ -8,7 +8,7 @@ use lib::{
     logging::Logger,
     net::{DELTA_TIME, PROTOCOL_ID},
 };
-use raylib::drawing::RaylibDraw;
+use raylib::drawing::{RaylibDraw, RaylibMode2DExt};
 use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
 
 use env_logger;
