@@ -75,16 +75,19 @@ fn main() {
             game.net_update(&handle, &mut network);
         }
 
-        let mut d = handle.begin_drawing(&thread);
-        d.clear_background(window::WINDOW_BACKGROUND_COLOR);
+        let mut draw = handle.begin_drawing(&thread);
+        draw.clear_background(window::WINDOW_BACKGROUND_COLOR);
 
-        let mut d = d.begin_mode2D(game.player.camera);
+        let mut draw_2d = draw.begin_mode2D(game.player.camera);
 
         if network.client.is_connecting() {
-            menu.render(&mut d);
+            menu.render(&mut draw_2d);
         } else if network.client.is_connected() {
-            game.net_render(&mut d, &mut network);
+            game.net_render(&mut draw_2d, &mut network);
         }
+
+        std::mem::drop(draw_2d);
+        draw.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
 
         match network.transport.send_packets(&mut network.client) {
             Ok(_) => {}

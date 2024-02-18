@@ -113,7 +113,6 @@ impl NetRenderHandle for Game {
         }
 
         self.player.render(d);
-        d.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
     }
 }
 
