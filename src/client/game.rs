@@ -1,8 +1,8 @@
 use crate::configs::{window, *};
+use crate::core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
 use crate::entities::{GameWorldTile, Player};
 
 use lib::{
-    core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle},
     packets::GameNetworkPacket,
     types::{RVector2, Wall},
 };
@@ -93,7 +93,7 @@ impl NetUpdateHandle for Game {
 
 impl NetRenderHandle for Game {
     type Network = GameNetwork;
-    fn net_render(&mut self, d: &mut RaylibDrawHandle, network: &mut Self::Network) {
+    fn net_render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>, network: &mut Self::Network) {
         let _ = d.begin_mode2D(self.player.camera);
 
         let assets = self.assets.borrow();
@@ -308,7 +308,7 @@ impl GameMenu {
 }
 
 impl RenderHandle for GameMenu {
-    fn render(&mut self, d: &mut RaylibDrawHandle) {
+    fn render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
         let assets = self.get_assets();
         let assets = assets.borrow();
 

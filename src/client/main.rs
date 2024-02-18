@@ -1,14 +1,17 @@
 mod configs;
+mod core;
 mod entities;
 mod game;
 
 use configs::window;
 use lib::{
-    core::{NetRenderHandle, NetUpdateHandle, RenderHandle},
     logging::Logger,
     net::{DELTA_TIME, PROTOCOL_ID},
 };
-use raylib::drawing::{RaylibDraw, RaylibMode2DExt};
+
+use core::{NetRenderHandle, NetUpdateHandle, RenderHandle};
+
+use raylib::drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D, RaylibMode2DExt};
 use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
 
 use env_logger;
@@ -73,6 +76,11 @@ fn main() {
         }
 
         let mut d = handle.begin_drawing(&thread);
+        let mut d = d.begin_mode2D(game.player.camera);
+
+        // log::debug!("{:?}", game.player.camera);
+        // log::debug!("{:?}", game.player.rectangle);
+
         d.clear_background(window::WINDOW_BACKGROUND_COLOR);
 
         if network.client.is_connecting() {

@@ -52,38 +52,6 @@ pub mod types {
     pub type Walls = std::collections::HashMap<(usize, usize), Wall>;
 }
 
-pub mod core {
-    use nalgebra::{Point2, Scale2, Vector2};
-    use raylib::prelude::*;
-
-    pub trait UpdateHandle {
-        fn update(&mut self, handle: &RaylibHandle);
-    }
-
-    pub trait RenderHandle {
-        fn render(&mut self, draw_handle: &mut RaylibDrawHandle)
-        where
-            Self: AssetsHandle;
-    }
-
-    pub trait NetUpdateHandle {
-        type Network;
-        fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network);
-    }
-
-    pub trait NetRenderHandle {
-        type Network;
-        fn net_render(&mut self, draw_handle: &mut RaylibDrawHandle, network: &mut Self::Network)
-        where
-            Self: AssetsHandle;
-    }
-
-    pub trait AssetsHandle {
-        type GameAssets;
-        fn get_assets(&self) -> Self::GameAssets;
-    }
-}
-
 pub mod utils {
     pub fn center<T: Copy + std::ops::Div<Output = T> + From<u32>>(width: T, height: T) -> (T, T) {
         let half: T = T::from(2u32);

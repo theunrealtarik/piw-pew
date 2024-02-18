@@ -1,11 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
-use nalgebra::{self, Point2, Scale2, Vector2};
+use lib::types::RVector2;
+use nalgebra::Vector2;
 use raylib::prelude::*;
 
 use crate::configs::{window, *};
+use crate::core::*;
 use crate::game::Assets;
-use lib::core::*;
 
 #[allow(dead_code)]
 pub struct Player {
@@ -21,14 +22,19 @@ pub struct Player {
 
 impl Player {
     pub fn new(name: String, assets: Rc<RefCell<Assets>>) -> Self {
+        let rectangle = Rectangle::new(0.0, 0.0, WORLD_TILE_SIZE * 0.8, WORLD_TILE_SIZE * 0.8);
         Self {
             name,
             orientation: 0.0,
-            rectangle: Rectangle::new(0.0, 0.0, WORLD_TILE_SIZE * 0.8, WORLD_TILE_SIZE * 0.8),
+            rectangle,
             camera: Camera2D {
                 rotation: 0.0,
                 zoom: 1.0,
-                ..Default::default()
+                offset: RVector2::new(window::WINDOW_CENTER_X, window::WINDOW_CENTER_Y),
+                target: RVector2::new(
+                    rectangle.x + player::PLAYER_CAMERA_OFFSET,
+                    rectangle.y + player::PLAYER_CAMERA_OFFSET,
+                ),
             },
             visible: false,
             velocity: Vector2::new(10.0, 10.0),
@@ -65,11 +71,14 @@ impl UpdateHandle for Player {
         let mouse_y = mouse_pos.y as f32 - self.rectangle.y;
 
         self.orientation = mouse_y.atan2(mouse_x).to_degrees();
+
+        self.camera.target.x = self.rectangle.x + player::PLAYER_CAMERA_OFFSET;
+        self.camera.target.y = self.rectangle.y + player::PLAYER_CAMERA_OFFSET;
     }
 }
 
 impl RenderHandle for Player {
-    fn render(&mut self, d: &mut RaylibDrawHandle) {
+    fn render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
         let origin = math::Vector2 {
             x: self.rectangle.width / 2.0,
             y: self.rectangle.height / 2.0,
