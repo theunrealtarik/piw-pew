@@ -33,24 +33,18 @@ use strum::VariantArray;
 use strum_macros::{Display, EnumIter, VariantArray};
 use uuid::Uuid;
 
-pub struct GameState {
-    player: Player,
-    world: GameWorld,
-}
-
 pub struct Game {
-    pub local: GameState,
     pub assets: Rc<RefCell<Assets>>,
+    pub player: Player,
+    pub world: GameWorld,
 }
 
 impl Game {
     pub fn new(assets: Rc<RefCell<Assets>>, settings: GameSettings) -> Self {
         Self {
             assets: Rc::clone(&assets),
-            local: GameState {
-                player: Player::new(settings.username, Rc::clone(&assets)),
-                world: GameWorld::new(),
-            },
+            player: Player::new(settings.username, Rc::clone(&assets)),
+            world: GameWorld::new(),
         }
     }
 }
@@ -84,7 +78,7 @@ impl NetUpdateHandle for Game {
                             }
                         }
 
-                        self.local.world.tiles = tiles;
+                        self.world.tiles = tiles;
                     }
                     GameNetworkPacket::NET_PLAYER_POSITION(_) => {}
                     GameNetworkPacket::NET_PLAYER_ORIENTATION_ANGLE(_) => {}
@@ -93,19 +87,19 @@ impl NetUpdateHandle for Game {
             };
         }
 
-        self.local.player.update(handle);
+        self.player.update(handle);
     }
 }
 
 impl NetRenderHandle for Game {
     type Network = GameNetwork;
     fn net_render(&mut self, d: &mut RaylibDrawHandle, network: &mut Self::Network) {
-        d.clear_background(window::WINDOW_BACKGROUND_COLOR);
+        let _ = d.begin_mode2D(self.player.camera);
 
         let assets = self.assets.borrow();
 
-        if self.local.world.tiles.len() > 0 {
-            for ((x, y), tile) in &self.local.world.tiles {
+        if self.world.tiles.len() > 0 {
+            for ((x, y), tile) in &self.world.tiles {
                 let texture = assets.textures.get(&tile.texture).unwrap();
                 let position =
                     RVector2::new(*x as f32 * WORLD_TILE_SIZE, *y as f32 * WORLD_TILE_SIZE);
@@ -120,7 +114,7 @@ impl NetRenderHandle for Game {
             }
         }
 
-        self.local.player.render(d);
+        self.player.render(d);
         d.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
     }
 }
@@ -435,7 +429,7 @@ impl GameSettings {
 }
 
 // game world
-struct GameWorld {
+pub struct GameWorld {
     tiles: HashMap<(usize, usize), GameWorldTile>,
 }
 

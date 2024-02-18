@@ -82,13 +82,6 @@ pub mod core {
         type GameAssets;
         fn get_assets(&self) -> Self::GameAssets;
     }
-
-    pub trait Entity {
-        fn get_position(&self) -> &Point2<f32>;
-        fn get_health(&self) -> &i8;
-        fn get_scale(&self) -> &Scale2<f32>;
-        fn get_velocity(&self) -> &Vector2<f32>;
-    }
 }
 
 pub mod utils {
