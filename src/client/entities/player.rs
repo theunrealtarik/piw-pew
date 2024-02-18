@@ -22,7 +22,13 @@ pub struct Player {
 
 impl Player {
     pub fn new(name: String, assets: Rc<RefCell<Assets>>) -> Self {
-        let rectangle = Rectangle::new(0.0, 0.0, WORLD_TILE_SIZE * 0.8, WORLD_TILE_SIZE * 0.8);
+        let rectangle = Rectangle::new(
+            window::WINDOW_CENTER_X,
+            window::WINDOW_CENTER_Y,
+            WORLD_TILE_SIZE * 0.8,
+            WORLD_TILE_SIZE * 0.8,
+        );
+
         Self {
             name,
             orientation: 0.0,

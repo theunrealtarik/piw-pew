@@ -76,12 +76,9 @@ fn main() {
         }
 
         let mut d = handle.begin_drawing(&thread);
-        let mut d = d.begin_mode2D(game.player.camera);
-
-        // log::debug!("{:?}", game.player.camera);
-        // log::debug!("{:?}", game.player.rectangle);
-
         d.clear_background(window::WINDOW_BACKGROUND_COLOR);
+
+        let mut d = d.begin_mode2D(game.player.camera);
 
         if network.client.is_connecting() {
             menu.render(&mut d);

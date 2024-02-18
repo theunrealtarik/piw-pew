@@ -94,8 +94,6 @@ impl NetUpdateHandle for Game {
 impl NetRenderHandle for Game {
     type Network = GameNetwork;
     fn net_render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>, network: &mut Self::Network) {
-        let _ = d.begin_mode2D(self.player.camera);
-
         let assets = self.assets.borrow();
 
         if self.world.tiles.len() > 0 {
