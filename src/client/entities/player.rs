@@ -15,6 +15,7 @@ pub struct Player {
     pub rectangle: Rectangle,
     pub camera: Camera2D,
     pub velocity: Vector2<f32>,
+    pub direction: Vector2<f32>,
     pub hp: i8,
     pub visible: bool,
     assets: Rc<RefCell<Assets>>,
@@ -44,42 +45,52 @@ impl Player {
             },
             visible: false,
             velocity: Vector2::new(10.0, 10.0),
+            direction: Vector2::new(1.0, 1.0),
             hp: 100,
             assets,
         }
     }
-}
 
-impl UpdateHandle for Player {
-    fn update(&mut self, handle: &RaylibHandle) {
-        let mut direction = Vector2::new(0.0, 0.0);
-
-        if handle.is_key_down(KeyboardKey::KEY_W) {
-            direction.y = -1.0
-        }
-        if handle.is_key_down(KeyboardKey::KEY_S) {
-            direction.y = 1.0
-        }
-        if handle.is_key_down(KeyboardKey::KEY_D) {
-            direction.x = 1.0
-        }
-        if handle.is_key_down(KeyboardKey::KEY_A) {
-            direction.x = -1.0
-        }
-
-        let velocity = self.velocity.component_mul(&direction);
-
+    pub fn movements(&mut self, handle: &RaylibHandle) {
+        let velocity = self.velocity.component_mul(&self.direction);
         self.rectangle.x += velocity.x;
         self.rectangle.y += velocity.y;
 
+        let player_pos = handle.get_world_to_screen2D(
+            RVector2::new(self.rectangle.x, self.rectangle.y),
+            self.camera,
+        );
+
         let mouse_pos = handle.get_mouse_position();
-        let mouse_x = mouse_pos.x as f32 - self.rectangle.x;
-        let mouse_y = mouse_pos.y as f32 - self.rectangle.y;
+        let mouse_x = mouse_pos.x as f32 - player_pos.x;
+        let mouse_y = mouse_pos.y as f32 - player_pos.y;
 
         self.orientation = mouse_y.atan2(mouse_x).to_degrees();
 
         self.camera.target.x = self.rectangle.x + player::PLAYER_CAMERA_OFFSET;
         self.camera.target.y = self.rectangle.y + player::PLAYER_CAMERA_OFFSET;
+    }
+}
+
+impl UpdateHandle for Player {
+    fn update(&mut self, handle: &RaylibHandle) {
+        self.direction = Vector2::new(0.0, 0.0);
+
+        if handle.is_key_down(KeyboardKey::KEY_W) {
+            self.direction.y = -1.0
+        }
+
+        if handle.is_key_down(KeyboardKey::KEY_S) {
+            self.direction.y = 1.0
+        }
+
+        if handle.is_key_down(KeyboardKey::KEY_D) {
+            self.direction.x = 1.0
+        }
+
+        if handle.is_key_down(KeyboardKey::KEY_A) {
+            self.direction.x = -1.0
+        }
     }
 }
 

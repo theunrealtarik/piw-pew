@@ -89,6 +89,7 @@ impl NetUpdateHandle for Game {
         }
 
         self.player.update(handle);
+        self.player.movements(handle);
     }
 }
 
