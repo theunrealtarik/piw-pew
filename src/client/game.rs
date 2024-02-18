@@ -296,11 +296,15 @@ impl GameAssets {
 // game menu
 pub struct GameMenu {
     assets: Rc<RefCell<Assets>>,
+    rotation: f32,
 }
 
 impl GameMenu {
     pub fn new(assets: Rc<RefCell<Assets>>) -> Self {
-        Self { assets }
+        Self {
+            assets,
+            rotation: 0.0,
+        }
     }
 }
 
@@ -312,62 +316,47 @@ impl RenderHandle for GameMenu {
         match (
             assets.textures.get(&TEXTURE::UI_LOGO),
             assets.textures.get(&TEXTURE::UI_LOADING),
-            assets.fonts.get(&FONT::FNT_POPPINS),
         ) {
-            (Some(logo_buf), Some(loading_buf), Some(font_buf)) => {
+            (Some(logo_buf), Some(loading_buf)) => {
                 let logo_texture: &Texture2D = logo_buf;
                 let loading_texture: &Texture2D = loading_buf;
 
-                let scale = 0.2;
-                let spacing = 5.0;
-
-                let origin = |texture2d: &Texture2D, size: f32| RVector2 {
-                    x: (texture2d.width as f32 * size) / 2.0,
-                    y: (texture2d.height as f32 * size) / 2.0,
-                };
-
-                let center = |texture2d: &Texture2D, size: f32| RVector2 {
-                    x: window::WINDOW_CENTER_X - origin(texture2d, size).x,
-                    y: window::WINDOW_CENTER_Y - origin(texture2d, size).y,
-                };
-
-                d.draw_texture_ex(
+                let (logo_width, logo_height) =
+                    (logo_texture.width as f32, logo_texture.height as f32);
+                d.draw_texture_pro(
                     logo_texture,
-                    center(logo_texture, scale)
-                        - RVector2 {
-                            x: 0.0,
-                            y: origin(logo_texture, scale).y - spacing,
-                        },
+                    Rectangle::new(0.0, 0.0, logo_width, logo_height),
+                    Rectangle::new(
+                        window::WINDOW_CENTER_X,
+                        window::WINDOW_CENTER_Y,
+                        logo_width / 4.0,
+                        logo_height / 4.0,
+                    ),
+                    RVector2::new(logo_width / 8.0, logo_height / 4.0),
                     0.0,
-                    scale,
                     Color::WHITE,
                 );
 
-                d.draw_texture_ex(
+                d.draw_texture_pro(
                     loading_texture,
-                    center(loading_texture, 0.2)
-                        + RVector2 {
-                            x: 0.0,
-                            y: origin(logo_texture, scale).y + spacing,
-                        },
-                    0.0,
-                    scale,
+                    Rectangle::new(
+                        0.0,
+                        0.0,
+                        loading_texture.width as f32,
+                        loading_texture.height as f32,
+                    ),
+                    Rectangle::new(
+                        window::WINDOW_CENTER_X,
+                        window::WINDOW_CENTER_Y + 75.0,
+                        100.0,
+                        100.0,
+                    ),
+                    RVector2::new(50.0, 50.0),
+                    self.rotation,
                     Color::WHITE,
                 );
 
-                let font: &Font = font_buf;
-                let font_size = 25.0;
-                d.draw_text_ex(
-                    font,
-                    "made with hate and agony with some sufference by txreq",
-                    RVector2 {
-                        x: window::WINDOW_BOTTOM_LEFT_X as f32 * font_size * 2.0,
-                        y: window::WINDOW_BOTTOM_LEFT_Y as f32 * font_size * 2.0,
-                    },
-                    font_size,
-                    1.0,
-                    Color::WHITE,
-                );
+                self.rotation -= 100.0 * d.get_frame_time();
             }
             _ => {}
         }
