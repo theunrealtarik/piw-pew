@@ -8,8 +8,8 @@ pub mod window {
     use lib::types::Color;
 
     pub const WINDOW_NAME: &str = "Piw Pew";
-    pub const WINDOW_HEIGHT: i32 = 600;
-    pub const WINDOW_WIDTH: i32 = 800;
+    pub const WINDOW_HEIGHT: i32 = 650;
+    pub const WINDOW_WIDTH: i32 = 850;
     pub const WINDOW_PADDING: i32 = 20;
     pub const WINDOW_BACKGROUND_COLOR: Color = Color::new(17, 18, 19, 255);
 
@@ -32,7 +32,7 @@ pub mod entities {
 
     pub const PLAYER_COLOR: Color = Color::new(246, 251, 255, 255);
     pub const ENEMY_COLOR: Color = Color::new(245, 169, 169, 255);
-    pub const WOLD_TILE_SIZE: f32 = 40.0;
+    pub const WORLD_TILE_SIZE: f32 = 50.0;
 }
 
 pub mod font {

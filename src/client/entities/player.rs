@@ -25,7 +25,10 @@ impl Player {
             name,
             orientation: 0.0,
             position: Point2::new(0.0, 0.0),
-            scale: Scale2::new(40.0, 40.0),
+            scale: Scale2::new(
+                entities::WORLD_TILE_SIZE * 0.8,
+                entities::WORLD_TILE_SIZE * 0.8,
+            ),
             velocity: Vector2::new(10.0, 10.0),
             hp: 100,
             assets,

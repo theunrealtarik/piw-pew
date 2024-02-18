@@ -1,4 +1,4 @@
-use crate::configs::window;
+use crate::configs::{entities, window};
 use crate::entities::Player;
 
 use lib::{
@@ -59,7 +59,7 @@ impl NetUpdateHandle for Game {
     type Network = GameNetwork;
 
     fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network) {
-        let assets = self.get_assets();
+        let assets = self.assets.borrow();
 
         while let Some(message) = network
             .client
@@ -75,19 +75,14 @@ impl NetUpdateHandle for Game {
                                 Tile::WALL_TOP => TEXTURE::ENV_WALL_TOP,
                                 _ => continue,
                             };
+                            // hydration
+                            if let Some(buffer) = assets.textures.get(&tile_texture) {
+                                let buffer: &Texture2D = buffer;
+                                let (w, h) = (buffer.width as f32, buffer.height as f32);
+                                let scale = entities::WORLD_TILE_SIZE / w;
 
-                            // let tile_buffer: Texture2D = assets.textures.remove(&tile_texture).unwrap();
-                            // tiles.insert(
-                            //     (x, y),
-                            //     GameWorldTile::new(
-                            //         tile,
-                            //         tile_buffer,
-                            //         x as f32,
-                            //         y as f32,
-                            //         40.0,
-                            //         40.0,
-                            //     ),
-                            // );
+                                tiles.insert((x, y), GameWorldTile::new(tile_texture, w, h, scale));
+                            }
                         }
 
                         self.local.world.tiles = tiles;
@@ -107,28 +102,29 @@ impl NetRenderHandle for Game {
     type Network = GameNetwork;
     fn net_render(&mut self, d: &mut RaylibDrawHandle, network: &mut Self::Network) {
         d.clear_background(window::WINDOW_BACKGROUND_COLOR);
-        d.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
 
-        let assets = self.get_assets();
-        let mut assets = assets.borrow_mut();
+        let assets = self.assets.borrow();
 
         if self.local.world.tiles.len() > 0 {
             for ((x, y), tile) in &self.local.world.tiles {
-                let tile_texture = match tile.variant {
-                    Tile::WALL_SIDE => TEXTURE::ENV_WALL_SIDE,
-                    Tile::WALL_TOP => TEXTURE::ENV_WALL_TOP,
-                    _ => TEXTURE::ENV_GROUND,
-                };
-                let position = RVector2::new(*x as f32, *y as f32);
-
-                if let Some(texture) = assets.textures.remove(&tile_texture) {
-                    let tile_buffer: Texture2D = texture;
-                    d.draw_texture_ex(tile_buffer, position, 0.0, 0.05, Color::WHITE);
-                };
+                let texture = assets.textures.get(&tile.texture).unwrap();
+                let position = RVector2::new(
+                    *x as f32 * entities::WORLD_TILE_SIZE,
+                    *y as f32 * entities::WORLD_TILE_SIZE,
+                );
+                d.draw_texture_pro(
+                    texture,
+                    tile.rectangle,
+                    tile.rec_scale(position.x, position.y),
+                    RVector2::new(0.0, 0.0),
+                    0.0,
+                    Color::WHITE,
+                );
             }
         }
 
         self.local.player.render(d);
+        d.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
     }
 }
 
@@ -444,18 +440,27 @@ impl GameSettings {
 // game world
 #[derive(Debug)]
 struct GameWorldTile {
-    variant: Tile,
+    texture: TEXTURE,
+    scale: f32,
     rectangle: Rectangle,
-    texture: Texture2D,
 }
 
 impl GameWorldTile {
-    fn new(variant: Tile, texture: Texture2D, x: f32, y: f32, width: f32, height: f32) -> Self {
+    fn new(texture: TEXTURE, width: f32, height: f32, scale: f32) -> Self {
         Self {
-            variant,
-            rectangle: Rectangle::new(x, y, width, height),
             texture,
+            scale,
+            rectangle: Rectangle::new(0.0, 0.0, width, height),
         }
+    }
+
+    fn rec_scale(&self, x: f32, y: f32) -> Rectangle {
+        Rectangle::new(
+            x,
+            y,
+            self.rectangle.width * self.scale,
+            self.rectangle.height * self.scale,
+        )
     }
 }
 

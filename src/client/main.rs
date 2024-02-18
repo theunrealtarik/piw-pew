@@ -9,7 +9,7 @@ use lib::{
     net::{DELTA_TIME, PROTOCOL_ID},
 };
 use raylib::drawing::RaylibDraw;
-use std::{cell::RefCell, net::SocketAddr, rc::Rc, sync::Arc, time::SystemTime};
+use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
 
 use env_logger;
 use game::{Game, GameAssets, GameMenu, GameNetwork, GameSettings};
