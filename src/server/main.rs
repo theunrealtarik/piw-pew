@@ -4,6 +4,7 @@ extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
+use lib::WORLD_TILE_SIZE;
 use rand::prelude::*;
 use rmps::Serializer;
 use serde::{Deserialize, Serialize};
@@ -116,7 +117,10 @@ fn main() {
                         let player = Client::new(
                             client_id,
                             name.to_string(),
-                            (rnd_spwn.0 as f32, rnd_spwn.1 as f32),
+                            (
+                                rnd_spwn.0 as f32 * WORLD_TILE_SIZE,
+                                rnd_spwn.1 as f32 * WORLD_TILE_SIZE,
+                            ),
                         );
 
                         state.players_count += 1;
@@ -136,9 +140,16 @@ fn main() {
                         );
 
                         let mut enemies_buffer = Vec::new();
-                        GameNetworkPacket::NET_WORLD_PLAYERS(state.get_players_raw())
-                            .serialize(&mut Serializer::new(&mut enemies_buffer))
-                            .unwrap();
+                        GameNetworkPacket::NET_WORLD_PLAYERS(
+                            state
+                                .get_players_raw()
+                                .into_iter()
+                                .filter(|(id, _)| *id != client_id.raw())
+                                .into_iter()
+                                .collect(),
+                        )
+                        .serialize(&mut Serializer::new(&mut enemies_buffer))
+                        .unwrap();
                         server.send_message(
                             client_id,
                             DefaultChannel::ReliableOrdered,

@@ -98,6 +98,8 @@ impl NetUpdateHandle for Game {
                         self.world.tiles = tiles;
                     }
                     GameNetworkPacket::NET_WORLD_PLAYERS(players) => {
+                        log::debug!("{:?}", players);
+
                         self.world.enemies = players
                             .into_iter()
                             .map(|(id, data)| {
@@ -106,6 +108,8 @@ impl NetUpdateHandle for Game {
                                     client_id,
                                     Enemy::new(
                                         client_id,
+                                        data.position.0,
+                                        data.position.1,
                                         data.orientation,
                                         data.hp,
                                         Rc::clone(&self.assets),
@@ -117,33 +121,35 @@ impl NetUpdateHandle for Game {
                             .collect::<HashMap<ClientId, Enemy>>();
                     }
                     GameNetworkPacket::NET_PLAYER_JOINED(data) => {
-                        let pos_world_x = data.position.0 * WORLD_TILE_SIZE;
-                        let pos_world_y = data.position.1 * WORLD_TILE_SIZE;
+                        let pos_x = data.position.0;
+                        let pos_y = data.position.1;
 
                         if network.uuid == data._id {
                             local_player.name = data.name;
                             local_player.orientation = data.orientation;
-                            local_player.rectangle.x = pos_world_x;
-                            local_player.rectangle.y = pos_world_y;
+                            local_player.rectangle.x = pos_x;
+                            local_player.rectangle.y = pos_y;
                             local_player.ready = true;
                         } else {
                             let id = ClientId::from_raw(data._id);
-                            let mut enemy =
-                                Enemy::new(id, data.orientation, data.hp, Rc::clone(&self.assets));
-
-                            enemy.rectangle.x = pos_world_x;
-                            enemy.rectangle.y = pos_world_y;
-                            enemy.hp = data.hp;
+                            let enemy = Enemy::new(
+                                id,
+                                pos_x,
+                                pos_y,
+                                data.orientation,
+                                data.hp,
+                                Rc::clone(&self.assets),
+                            );
 
                             self.world.enemies.insert(id, enemy);
                         }
                     }
                     // these run at every frame
                     GameNetworkPacket::NET_PLAYER_WORLD_POSITION(id, (x, y)) => {
-                        if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
-                            enemy.rectangle.x = x;
-                            enemy.rectangle.y = y;
-                        }
+                        // if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
+                        //     enemy.rectangle.x = x;
+                        //     enemy.rectangle.y = y;
+                        // }
                     }
                     _ => {}
                 }
@@ -214,6 +220,8 @@ impl NetRenderHandle for Game {
         }
 
         self.player.render(d);
+
+        dbg!(&self.world.enemies.len());
 
         for enemy in self.world.enemies.values_mut() {
             dbg!(&enemy.id);

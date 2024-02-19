@@ -22,11 +22,18 @@ pub struct Enemy {
 }
 
 impl Enemy {
-    pub fn new(id: ClientId, orientation: f32, hp: u8, assets: Rc<RefCell<Assets>>) -> Self {
+    pub fn new(
+        id: ClientId,
+        x: f32,
+        y: f32,
+        orientation: f32,
+        hp: u8,
+        assets: Rc<RefCell<Assets>>,
+    ) -> Self {
         Self {
             id,
             orientation,
-            rectangle: Rectangle::new(0.0, 0.0, PLAYER_TILE_SIZE as f32, PLAYER_TILE_SIZE as f32),
+            rectangle: Rectangle::new(x, y, PLAYER_TILE_SIZE as f32, PLAYER_TILE_SIZE as f32),
             origin: Default::default(),
             hp,
             assets,
