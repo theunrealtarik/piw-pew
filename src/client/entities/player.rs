@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use lib::types::RVector2;
-use lib::WORLD_TILE_SIZE;
+use lib::PLAYER_TILE_SIZE;
 use nalgebra::Vector2;
 use raylib::prelude::*;
 
@@ -10,6 +10,7 @@ use crate::core::*;
 use crate::game::Assets;
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct Player {
     pub name: String,
     pub orientation: f32,
@@ -28,8 +29,8 @@ impl Player {
         let rectangle = Rectangle::new(
             window::WINDOW_CENTER_X,
             window::WINDOW_CENTER_Y,
-            WORLD_TILE_SIZE * 0.8,
-            WORLD_TILE_SIZE * 0.8,
+            PLAYER_TILE_SIZE,
+            PLAYER_TILE_SIZE,
         );
         let origin = Vector2::new(rectangle.width / 2.0, rectangle.height / 2.0);
 
@@ -58,12 +59,14 @@ impl Player {
         }
     }
 
-    pub fn move_to(&mut self, position: Vector2<f32>) {
+    pub fn move_to(&mut self, position: Vector2<f32>) -> Vector2<f32> {
         self.rectangle.x = position.x;
         self.rectangle.y = position.y;
 
         self.camera.target.x = self.rectangle.x + player::PLAYER_CAMERA_OFFSET;
         self.camera.target.y = self.rectangle.y + player::PLAYER_CAMERA_OFFSET;
+
+        Vector2::new(self.rectangle.x, self.rectangle.y)
     }
 
     pub fn on_move(&mut self, handle: &RaylibHandle) -> Vector2<f32> {

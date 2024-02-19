@@ -1,10 +1,12 @@
 #![allow(non_camel_case_types)]
 
 pub static WORLD_TILE_SIZE: f32 = 50.0;
+pub static PLAYER_TILE_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
 
 pub mod net {
     use std::time::Duration;
 
+    pub const SERVER_MAX_CLIENTS: usize = 12;
     pub const PROTOCOL_ID: u64 = 69;
     pub const DELTA_TIME: Duration = Duration::from_millis(16);
 }
@@ -25,23 +27,27 @@ pub mod logging {
 
 pub mod packets {
     extern crate rmp_serde as rmps;
+
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
     pub struct PlayerData {
+        pub _id: u64,
         pub position: (f32, f32),
         pub orientation: f32,
         pub name: String,
+        pub hp: u8,
     }
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
     pub enum GameNetworkPacket {
         NET_WORLD_MAP(HashMap<(usize, usize), super::types::Tile>),
+        NET_WORLD_PLAYERS(HashMap<u64, PlayerData>),
         NET_PLAYER_JOINED(PlayerData),
-        NET_PLAYER_POSITION((f32, f32)),
-        NET_PLAYER_ORIENTATION_ANGLE(usize),
-        NET_PLAYER_NAME(String),
+        NET_PLAYER_GRID_POSITION(u64, (usize, usize)),
+        NET_PLAYER_WORLD_POSITION(u64, (f32, f32)),
+        NET_PLAYER_ORIENTATION_ANGLE(u64, usize),
     }
 }
 

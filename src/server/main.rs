@@ -4,13 +4,12 @@ extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
-use lib::WORLD_TILE_SIZE;
 use rand::prelude::*;
 use rmps::Serializer;
 use serde::{Deserialize, Serialize};
 
 use lib::logging::Logger;
-use lib::net::{DELTA_TIME, PROTOCOL_ID};
+use lib::net::{DELTA_TIME, PROTOCOL_ID, SERVER_MAX_CLIENTS};
 use lib::packets::{GameNetworkPacket, PlayerData};
 use lib::types::{Tile, Tiles};
 
@@ -28,30 +27,25 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PlayerClient {
+#[allow(dead_code)]
+pub struct Client {
     id: ClientId,
     data: PlayerData,
 }
 
-impl PlayerClient {
+impl Client {
     fn new(id: ClientId, name: String, (x, y): (f32, f32)) -> Self {
         Self {
             id,
             data: PlayerData {
+                _id: id.raw(),
                 position: (x, y),
                 orientation: 0.0,
                 name,
+                hp: 100,
             },
         }
     }
-}
-
-#[derive(Debug)]
-pub struct GameState {}
-
-pub struct ServerState {
-    players: HashMap<ClientId, PlayerClient>,
-    players_count: usize,
 }
 
 fn main() {
@@ -86,7 +80,7 @@ fn main() {
         current_time: SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap(),
-        max_clients: 64,
+        max_clients: SERVER_MAX_CLIENTS,
         protocol_id: PROTOCOL_ID,
         public_addresses: vec![public_addr],
         authentication: ServerAuthentication::Unsecure,
@@ -114,11 +108,12 @@ fn main() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     if let Some(user_data) = transport.user_data(client_id) {
+                        // get joined player gender identification
                         let stop_index = user_data.iter().position(|&byte| byte == 0).unwrap();
                         let name = String::from_utf8_lossy(&user_data[0..stop_index]).to_string();
                         let rnd_spwn = map.get_random_spawn_position();
 
-                        let player = PlayerClient::new(
+                        let player = Client::new(
                             client_id,
                             name.to_string(),
                             (rnd_spwn.0 as f32, rnd_spwn.1 as f32),
@@ -133,24 +128,35 @@ fn main() {
                             transport.max_clients()
                         );
 
+                        // inform joined player
                         server.send_message(
                             client_id,
                             DefaultChannel::ReliableOrdered,
                             map_buffer.clone(),
                         );
 
-                        let mut rng_spwn = Vec::new();
-                        GameNetworkPacket::NET_PLAYER_JOINED(player.data)
-                            .serialize(&mut Serializer::new(&mut rng_spwn))
+                        let mut enemies_buffer = Vec::new();
+                        GameNetworkPacket::NET_WORLD_PLAYERS(state.get_players_raw())
+                            .serialize(&mut Serializer::new(&mut enemies_buffer))
                             .unwrap();
-                        server.broadcast_message(DefaultChannel::ReliableOrdered, rng_spwn);
+                        server.send_message(
+                            client_id,
+                            DefaultChannel::ReliableOrdered,
+                            enemies_buffer,
+                        );
+
+                        let mut rng_buffer = Vec::new();
+                        GameNetworkPacket::NET_PLAYER_JOINED(player.data)
+                            .serialize(&mut Serializer::new(&mut rng_buffer))
+                            .unwrap();
+                        server.broadcast_message(DefaultChannel::ReliableOrdered, rng_buffer);
                     };
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
                     state.players_count -= 1;
                     state.players.remove(&client_id);
-                    log::info!(
-                        "client connected {} ({}/{})",
+                    log::warn!(
+                        "client disconnected {} ({}/{})",
                         client_id,
                         state.players_count,
                         transport.max_clients()
@@ -160,8 +166,54 @@ fn main() {
             }
         }
 
+        for client_id in server.clients_id() {
+            while let Some(message) =
+                server.receive_message(client_id, DefaultChannel::ReliableOrdered)
+            {
+                if let (Ok(packet), Some(player)) = (
+                    rmp_serde::from_slice::<GameNetworkPacket>(&message),
+                    state.players.get_mut(&client_id),
+                ) {
+                    match packet {
+                        GameNetworkPacket::NET_PLAYER_WORLD_POSITION(_, (x, y)) => {
+                            player.data.position = (x, y);
+                            server.broadcast_message_except(
+                                client_id,
+                                DefaultChannel::ReliableOrdered,
+                                message,
+                            )
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
         transport.send_packets(&mut server);
         std::thread::sleep(delta_time);
+    }
+}
+
+#[derive(Debug)]
+pub struct GameState {}
+
+#[derive(Debug)]
+pub struct ServerState {
+    players: HashMap<ClientId, Client>,
+    players_count: usize,
+}
+
+impl ServerState {
+    pub fn get_players_raw(&self) -> HashMap<u64, PlayerData> {
+        HashMap::from(
+            self.players
+                .clone()
+                .into_iter()
+                .map(|(client_id, client)| (client_id.raw(), client.data))
+                .collect::<Vec<(u64, PlayerData)>>()
+                .into_iter()
+                .collect::<HashMap<u64, PlayerData>>(),
+        )
     }
 }
 

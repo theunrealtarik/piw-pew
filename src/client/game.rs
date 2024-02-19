@@ -1,7 +1,8 @@
 use crate::configs::window;
 use crate::core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
-use crate::entities::{GameWorldTile, Player};
+use crate::entities::{Enemy, GameWorldTile, Player};
 
+use lib::packets::PlayerData;
 use lib::WORLD_TILE_SIZE;
 use lib::{
     packets::GameNetworkPacket,
@@ -11,10 +12,13 @@ use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
 };
+use renet::ClientId;
 use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport, NetcodeError},
     ConnectionConfig, DefaultChannel, RenetClient,
 };
+use rmps::Serializer;
+use serde::Serialize;
 
 extern crate rmp_serde as rmps;
 extern crate serde;
@@ -55,14 +59,15 @@ impl NetUpdateHandle for Game {
         let local_player = &mut self.player;
         let assets = self.assets.borrow();
 
+        // reliable order messages
         while let Some(message) = network
             .client
             .receive_message(DefaultChannel::ReliableOrdered)
         {
             if let Ok(packet) = rmp_serde::from_slice::<GameNetworkPacket>(&message) {
                 match packet {
+                    // runs only once (hopefully)
                     GameNetworkPacket::NET_WORLD_MAP(map) => {
-                        // runs only once (hopefully)
                         let mut tiles = HashMap::new();
                         for ((x, y), tile) in map {
                             let tile_texture = match tile {
@@ -92,18 +97,60 @@ impl NetUpdateHandle for Game {
 
                         self.world.tiles = tiles;
                     }
+                    GameNetworkPacket::NET_WORLD_PLAYERS(players) => {
+                        self.world.enemies = players
+                            .into_iter()
+                            .map(|(id, data)| {
+                                let client_id = ClientId::from_raw(id);
+                                (
+                                    client_id,
+                                    Enemy::new(
+                                        client_id,
+                                        data.orientation,
+                                        data.hp,
+                                        Rc::clone(&self.assets),
+                                    ),
+                                )
+                            })
+                            .collect::<Vec<(ClientId, Enemy)>>()
+                            .into_iter()
+                            .collect::<HashMap<ClientId, Enemy>>();
+                    }
                     GameNetworkPacket::NET_PLAYER_JOINED(data) => {
-                        local_player.name = data.name;
-                        local_player.orientation = data.orientation;
-                        local_player.rectangle.x = data.position.0 * WORLD_TILE_SIZE;
-                        local_player.rectangle.y = data.position.1 * WORLD_TILE_SIZE;
-                        local_player.ready = true;
+                        let pos_world_x = data.position.0 * WORLD_TILE_SIZE;
+                        let pos_world_y = data.position.1 * WORLD_TILE_SIZE;
+
+                        if network.uuid == data._id {
+                            local_player.name = data.name;
+                            local_player.orientation = data.orientation;
+                            local_player.rectangle.x = pos_world_x;
+                            local_player.rectangle.y = pos_world_y;
+                            local_player.ready = true;
+                        } else {
+                            let id = ClientId::from_raw(data._id);
+                            let mut enemy =
+                                Enemy::new(id, data.orientation, data.hp, Rc::clone(&self.assets));
+
+                            enemy.rectangle.x = pos_world_x;
+                            enemy.rectangle.y = pos_world_y;
+                            enemy.hp = data.hp;
+
+                            self.world.enemies.insert(id, enemy);
+                        }
+                    }
+                    // these run at every frame
+                    GameNetworkPacket::NET_PLAYER_WORLD_POSITION(id, (x, y)) => {
+                        if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
+                            enemy.rectangle.x = x;
+                            enemy.rectangle.y = y;
+                        }
                     }
                     _ => {}
                 }
             };
         }
 
+        // local player stuff
         local_player.update(handle);
         let position = local_player.on_move(handle);
         let tiles = self.world.tiles.len() as f32;
@@ -127,7 +174,16 @@ impl NetUpdateHandle for Game {
                 }
             }
 
-            local_player.move_to(position);
+            let mut position_buffer = Vec::new();
+            let position = local_player.move_to(position);
+
+            GameNetworkPacket::NET_PLAYER_WORLD_POSITION(network.uuid, (position.x, position.y))
+                .serialize(&mut Serializer::new(&mut position_buffer))
+                .unwrap();
+
+            network
+                .client
+                .send_message(DefaultChannel::ReliableUnordered, position_buffer);
         }
     }
 }
@@ -158,6 +214,11 @@ impl NetRenderHandle for Game {
         }
 
         self.player.render(d);
+
+        for enemy in self.world.enemies.values_mut() {
+            dbg!(&enemy.id);
+            enemy.render(d);
+        }
     }
 }
 
@@ -462,12 +523,14 @@ impl GameSettings {
 // game world
 pub struct GameWorld {
     tiles: HashMap<(usize, usize), GameWorldTile>,
+    enemies: HashMap<ClientId, Enemy>,
 }
 
 impl GameWorld {
     fn new() -> Self {
         Self {
             tiles: HashMap::new(),
+            enemies: HashMap::new(),
         }
     }
 }
