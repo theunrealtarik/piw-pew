@@ -62,6 +62,7 @@ impl NetUpdateHandle for Game {
             if let Ok(packet) = rmp_serde::from_slice::<GameNetworkPacket>(&message) {
                 match packet {
                     GameNetworkPacket::NET_WORLD_MAP(map) => {
+                        // runs only once (hopefully)
                         let mut tiles = HashMap::new();
                         for ((x, y), tile) in map {
                             let tile_texture = match tile {
@@ -73,23 +74,54 @@ impl NetUpdateHandle for Game {
                             if let Some(buffer) = assets.textures.get(&tile_texture) {
                                 let buffer: &Texture2D = buffer;
                                 let (w, h) = (buffer.width as f32, buffer.height as f32);
-                                let scale = WORLD_TILE_SIZE / w;
 
-                                tiles.insert((x, y), GameWorldTile::new(tile_texture, w, h, scale));
+                                tiles.insert(
+                                    (x, y),
+                                    GameWorldTile::new(
+                                        tile,
+                                        tile_texture,
+                                        x as f32,
+                                        y as f32,
+                                        w,
+                                        h,
+                                        WORLD_TILE_SIZE,
+                                    ),
+                                );
                             }
                         }
 
                         self.world.tiles = tiles;
                     }
-                    GameNetworkPacket::NET_PLAYER_POSITION(_) => {}
-                    GameNetworkPacket::NET_PLAYER_ORIENTATION_ANGLE(_) => {}
-                    GameNetworkPacket::NET_PLAYER_NAME(_) => {}
+                    _ => {}
                 }
             };
         }
 
         self.player.update(handle);
-        self.player.movements(handle);
+        let position = self.player.on_move(handle);
+        let tiles = self.world.tiles.len() as f32;
+        let side_length = tiles.sqrt() * WORLD_TILE_SIZE;
+
+        if position.x > 0.0
+            && position.x < side_length - self.player.rectangle.width
+            && position.y > 0.0
+            && position.y < side_length - self.player.rectangle.height
+        {
+            let rectangle = Rectangle::new(
+                position.x,
+                position.y,
+                self.player.rectangle.width,
+                self.player.rectangle.height,
+            );
+
+            for tile in self.world.tiles.values() {
+                if tile.variant != Tile::GROUND && rectangle.check_collision_recs(&tile.dest_rect) {
+                    return;
+                }
+            }
+
+            self.player.move_to(position);
+        }
     }
 }
 
@@ -99,19 +131,35 @@ impl NetRenderHandle for Game {
         let assets = self.assets.borrow();
 
         if self.world.tiles.len() > 0 {
-            for ((x, y), tile) in &self.world.tiles {
+            for tile in self.world.tiles.values() {
                 let texture = assets.textures.get(&tile.texture).unwrap();
-                let position =
-                    RVector2::new(*x as f32 * WORLD_TILE_SIZE, *y as f32 * WORLD_TILE_SIZE);
+
+                let color = match tile.variant {
+                    Tile::WALL_SIDE | Tile::WALL_TOP => {
+                        if self.player.rectangle.check_collision_recs(&tile.dest_rect) {
+                            Color::RED
+                        } else {
+                            Color::WHITE
+                        }
+                    }
+                    Tile::GROUND => Color::WHITE,
+                };
+
                 d.draw_texture_pro(
                     texture,
-                    tile.rectangle,
-                    tile.rec_scale(position.x, position.y),
-                    RVector2::new(0.0, 0.0),
+                    tile.src_rect,
+                    tile.dest_rect,
+                    RVector2::zero(),
                     0.0,
-                    Color::WHITE,
+                    color,
                 );
             }
+
+            let (w, h) = (
+                (self.world.tiles.len() as f32).sqrt() * WORLD_TILE_SIZE,
+                (self.world.tiles.len() as f32).sqrt() * WORLD_TILE_SIZE,
+            );
+            d.draw_rectangle_lines_ex(Rectangle::new(0.0, 0.0, w, h), 1, Color::LIGHTGRAY);
         }
 
         self.player.render(d);

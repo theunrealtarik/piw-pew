@@ -30,6 +30,8 @@ pub mod player {
 
     pub const PLAYER_COLOR: Color = Color::new(246, 251, 255, 255);
     pub const PLAYER_CAMERA_OFFSET: f32 = 20.0;
+    pub const PLAYER_INIT_VELOCITY_X: f32 = 250.0;
+    pub const PLAYER_INIT_VELOCITY_Y: f32 = 250.0;
 }
 
 pub mod font {

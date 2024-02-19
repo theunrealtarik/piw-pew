@@ -13,6 +13,7 @@ pub struct Player {
     pub name: String,
     pub orientation: f32,
     pub rectangle: Rectangle,
+    pub origin: Vector2<f32>,
     pub camera: Camera2D,
     pub velocity: Vector2<f32>,
     pub direction: Vector2<f32>,
@@ -29,11 +30,13 @@ impl Player {
             WORLD_TILE_SIZE * 0.8,
             WORLD_TILE_SIZE * 0.8,
         );
+        let origin = Vector2::new(rectangle.width / 2.0, rectangle.height / 2.0);
 
         Self {
             name,
             orientation: 0.0,
             rectangle,
+            origin,
             camera: Camera2D {
                 rotation: 0.0,
                 zoom: 1.0,
@@ -44,31 +47,32 @@ impl Player {
                 ),
             },
             visible: false,
-            velocity: Vector2::new(10.0, 10.0),
+            velocity: Vector2::new(
+                player::PLAYER_INIT_VELOCITY_X,
+                player::PLAYER_INIT_VELOCITY_Y,
+            ),
             direction: Vector2::new(1.0, 1.0),
             hp: 100,
             assets,
         }
     }
 
-    pub fn movements(&mut self, handle: &RaylibHandle) {
-        let velocity = self.velocity.component_mul(&self.direction);
-        self.rectangle.x += velocity.x;
-        self.rectangle.y += velocity.y;
-
-        let player_pos = handle.get_world_to_screen2D(
-            RVector2::new(self.rectangle.x, self.rectangle.y),
-            self.camera,
-        );
-
-        let mouse_pos = handle.get_mouse_position();
-        let mouse_x = mouse_pos.x as f32 - player_pos.x;
-        let mouse_y = mouse_pos.y as f32 - player_pos.y;
-
-        self.orientation = mouse_y.atan2(mouse_x).to_degrees();
+    pub fn move_to(&mut self, position: Vector2<f32>) {
+        self.rectangle.x = position.x;
+        self.rectangle.y = position.y;
 
         self.camera.target.x = self.rectangle.x + player::PLAYER_CAMERA_OFFSET;
         self.camera.target.y = self.rectangle.y + player::PLAYER_CAMERA_OFFSET;
+    }
+
+    pub fn on_move(&mut self, handle: &RaylibHandle) -> Vector2<f32> {
+        let mut new_position = Vector2::new(self.rectangle.x, self.rectangle.y);
+        let velocity = self.velocity.component_mul(&self.direction);
+        let dt = handle.get_frame_time();
+        new_position.x += velocity.x * dt;
+        new_position.y += velocity.y * dt;
+
+        new_position
     }
 }
 
@@ -91,19 +95,25 @@ impl UpdateHandle for Player {
         if handle.is_key_down(KeyboardKey::KEY_A) {
             self.direction.x = -1.0
         }
+
+        let player_pos = handle.get_world_to_screen2D(
+            RVector2::new(self.rectangle.x, self.rectangle.y),
+            self.camera,
+        );
+
+        let mouse_pos = handle.get_mouse_position();
+        let mouse_x = mouse_pos.x as f32 - player_pos.x;
+        let mouse_y = mouse_pos.y as f32 - player_pos.y;
+
+        // self.orientation = mouse_y.atan2(mouse_x).to_degrees();
     }
 }
 
 impl RenderHandle for Player {
     fn render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
-        let origin = math::Vector2 {
-            x: self.rectangle.width / 2.0,
-            y: self.rectangle.height / 2.0,
-        };
-
         d.draw_rectangle_pro(
             self.rectangle,
-            origin,
+            RVector2::zero(),
             self.orientation,
             player::PLAYER_COLOR,
         );
