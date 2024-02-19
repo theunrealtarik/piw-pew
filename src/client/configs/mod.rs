@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-pub static WORLD_TILE_SIZE: f32 = 50.0;
-
 pub mod window {
     use lib::types::Color;
 

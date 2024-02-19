@@ -4,13 +4,15 @@ extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
-use lib::types::{Tile, Tiles};
+use lib::WORLD_TILE_SIZE;
+use rand::prelude::*;
 use rmps::Serializer;
 use serde::{Deserialize, Serialize};
 
 use lib::logging::Logger;
 use lib::net::{DELTA_TIME, PROTOCOL_ID};
-use lib::packets::GameNetworkPacket;
+use lib::packets::{GameNetworkPacket, PlayerData};
+use lib::types::{Tile, Tiles};
 
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
@@ -25,14 +27,22 @@ use std::{
     time::SystemTime,
 };
 
-#[derive(Debug)]
-pub struct Client {
+#[derive(Debug, Clone)]
+pub struct PlayerClient {
     id: ClientId,
+    data: PlayerData,
 }
 
-impl Client {
-    fn new(id: ClientId) -> Self {
-        Self { id }
+impl PlayerClient {
+    fn new(id: ClientId, name: String, (x, y): (f32, f32)) -> Self {
+        Self {
+            id,
+            data: PlayerData {
+                position: (x, y),
+                orientation: 0.0,
+                name,
+            },
+        }
     }
 }
 
@@ -40,8 +50,8 @@ impl Client {
 pub struct GameState {}
 
 pub struct ServerState {
-    clients: HashMap<ClientId, Client>,
-    clients_count: usize,
+    players: HashMap<ClientId, PlayerClient>,
+    players_count: usize,
 }
 
 fn main() {
@@ -68,8 +78,8 @@ fn main() {
 
     let mut server: RenetServer = RenetServer::new(connection_config);
     let mut state = ServerState {
-        clients_count: 0,
-        clients: HashMap::new(),
+        players_count: 0,
+        players: HashMap::new(),
     };
 
     let server_config = ServerConfig {
@@ -103,28 +113,46 @@ fn main() {
         while let Some(event) = server.get_event() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
-                    state.clients_count += 1;
-                    state.clients.insert(client_id, Client::new(client_id));
-                    log::info!(
-                        "client connected {} ({}/{})",
-                        client_id,
-                        state.clients_count,
-                        transport.max_clients()
-                    );
+                    if let Some(user_data) = transport.user_data(client_id) {
+                        let stop_index = user_data.iter().position(|&byte| byte == 0).unwrap();
+                        let name = String::from_utf8_lossy(&user_data[0..stop_index]).to_string();
+                        let rnd_spwn = map.get_random_spawn_position();
 
-                    server.send_message(
-                        client_id,
-                        DefaultChannel::ReliableOrdered,
-                        map_buffer.clone(),
-                    );
+                        let player = PlayerClient::new(
+                            client_id,
+                            name.to_string(),
+                            (rnd_spwn.0 as f32, rnd_spwn.1 as f32),
+                        );
+
+                        state.players_count += 1;
+                        state.players.insert(client_id, player.clone());
+                        log::info!(
+                            "client connected {} ({}/{})",
+                            client_id,
+                            state.players_count,
+                            transport.max_clients()
+                        );
+
+                        server.send_message(
+                            client_id,
+                            DefaultChannel::ReliableOrdered,
+                            map_buffer.clone(),
+                        );
+
+                        let mut rng_spwn = Vec::new();
+                        GameNetworkPacket::NET_PLAYER_JOINED(player.data)
+                            .serialize(&mut Serializer::new(&mut rng_spwn))
+                            .unwrap();
+                        server.broadcast_message(DefaultChannel::ReliableOrdered, rng_spwn);
+                    };
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
-                    state.clients_count -= 1;
-                    state.clients.remove(&client_id);
+                    state.players_count -= 1;
+                    state.players.remove(&client_id);
                     log::info!(
                         "client connected {} ({}/{})",
                         client_id,
-                        state.clients_count,
+                        state.players_count,
                         transport.max_clients()
                     );
                     log::warn!("reason: {}", reason);
@@ -184,5 +212,27 @@ impl Map {
             .unwrap();
 
         map_buffer
+    }
+
+    fn get_ground(&self) -> Tiles {
+        let mut map: Tiles = HashMap::new();
+        for ((x, y), tile) in &self.tiles {
+            if *tile == Tile::GROUND {
+                map.insert((*x, *y), tile.clone());
+            }
+        }
+
+        map
+    }
+
+    fn get_random_spawn_position(&self) -> (usize, usize) {
+        let mut rng = thread_rng();
+        let ground_tiles = self.get_ground();
+        let ground_tiles = ground_tiles
+            .iter()
+            .collect::<Vec<(&(usize, usize), &Tile)>>();
+        let tile_pair = ground_tiles.choose(&mut rng).unwrap();
+
+        *tile_pair.0
     }
 }

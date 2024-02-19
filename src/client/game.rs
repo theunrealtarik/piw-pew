@@ -1,7 +1,8 @@
-use crate::configs::{window, *};
+use crate::configs::window;
 use crate::core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
 use crate::entities::{GameWorldTile, Player};
 
+use lib::WORLD_TILE_SIZE;
 use lib::{
     packets::GameNetworkPacket,
     types::{RVector2, Tile},
@@ -23,7 +24,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     fs::File,
-    io::{Error, ErrorKind, Read, Write},
+    io::{Error, ErrorKind, Read},
     net::{SocketAddr, UdpSocket},
     path::{Path, PathBuf},
     rc::Rc,
@@ -50,9 +51,8 @@ impl Game {
 }
 
 impl NetUpdateHandle for Game {
-    type Network = GameNetwork;
-
-    fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network) {
+    fn net_update(&mut self, handle: &RaylibHandle, network: &mut GameNetwork) {
+        let local_player = &mut self.player;
         let assets = self.assets.borrow();
 
         while let Some(message) = network
@@ -92,26 +92,33 @@ impl NetUpdateHandle for Game {
 
                         self.world.tiles = tiles;
                     }
+                    GameNetworkPacket::NET_PLAYER_JOINED(data) => {
+                        local_player.name = data.name;
+                        local_player.orientation = data.orientation;
+                        local_player.rectangle.x = data.position.0 * WORLD_TILE_SIZE;
+                        local_player.rectangle.y = data.position.1 * WORLD_TILE_SIZE;
+                        local_player.ready = true;
+                    }
                     _ => {}
                 }
             };
         }
 
-        self.player.update(handle);
-        let position = self.player.on_move(handle);
+        local_player.update(handle);
+        let position = local_player.on_move(handle);
         let tiles = self.world.tiles.len() as f32;
         let side_length = tiles.sqrt() * WORLD_TILE_SIZE;
 
         if position.x > 0.0
-            && position.x < side_length - self.player.rectangle.width
+            && position.x < side_length - local_player.rectangle.width
             && position.y > 0.0
-            && position.y < side_length - self.player.rectangle.height
+            && position.y < side_length - local_player.rectangle.height
         {
             let rectangle = Rectangle::new(
                 position.x,
                 position.y,
-                self.player.rectangle.width,
-                self.player.rectangle.height,
+                local_player.rectangle.width,
+                local_player.rectangle.height,
             );
 
             for tile in self.world.tiles.values() {
@@ -120,30 +127,18 @@ impl NetUpdateHandle for Game {
                 }
             }
 
-            self.player.move_to(position);
+            local_player.move_to(position);
         }
     }
 }
 
 impl NetRenderHandle for Game {
-    type Network = GameNetwork;
-    fn net_render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>, network: &mut Self::Network) {
+    fn net_render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>, network: &mut GameNetwork) {
         let assets = self.assets.borrow();
 
         if self.world.tiles.len() > 0 {
             for tile in self.world.tiles.values() {
                 let texture = assets.textures.get(&tile.texture).unwrap();
-
-                let color = match tile.variant {
-                    Tile::WALL_SIDE | Tile::WALL_TOP => {
-                        if self.player.rectangle.check_collision_recs(&tile.dest_rect) {
-                            Color::RED
-                        } else {
-                            Color::WHITE
-                        }
-                    }
-                    Tile::GROUND => Color::WHITE,
-                };
 
                 d.draw_texture_pro(
                     texture,
@@ -151,7 +146,7 @@ impl NetRenderHandle for Game {
                     tile.dest_rect,
                     RVector2::zero(),
                     0.0,
-                    color,
+                    Color::WHITE,
                 );
             }
 
@@ -188,6 +183,7 @@ impl GameNetwork {
         server_addr: SocketAddr,
         current_time: Duration,
         protocol_id: u64,
+        data: [u8; 256],
     ) -> Result<Self, NetcodeError> {
         let uuid = u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap());
 
@@ -197,7 +193,7 @@ impl GameNetwork {
         let authentication = ClientAuthentication::Unsecure {
             server_addr,
             client_id: uuid,
-            user_data: None,
+            user_data: Some(data),
             protocol_id,
         };
 
@@ -413,9 +409,9 @@ impl AssetsHandle for GameMenu {
 }
 
 // game settings
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GameSettings {
-    username: String,
+    pub username: String,
 }
 
 impl GameSettings {
@@ -423,35 +419,42 @@ impl GameSettings {
         let default_user_settings = GameSettings {
             username: String::from("Player"),
         };
+
         match File::open(&path) {
-            Ok(ref mut file) => {
+            Ok(mut file) => {
                 let mut buffer = String::new();
-                match file.read_to_string(&mut buffer) {
-                    Ok(_bytes) => {
-                        if let Ok(settings) = serde_json::from_str::<Self>(&buffer) {
+                if let Ok(bytes) = file.read_to_string(&mut buffer) {
+                    if let Ok(settings) = serde_json::from_str::<Self>(&buffer) {
+                        log::info!("read {} bytes from settings", bytes);
+
+                        if !settings.username.is_empty() {
                             return settings;
                         }
-
-                        return default_user_settings;
                     }
-                    Err(_) => default_user_settings,
+                } else {
+                    log::warn!("failed to read settings file");
                 }
+                default_user_settings
             }
-            Err(err) => match err.kind() {
-                ErrorKind::NotFound => {
-                    log::error!("`settings.json` not found");
-                    log::warn!("creating a settings file...");
 
-                    let mut file = File::create(&path).unwrap();
-                    let buffer = serde_json::to_string(&default_user_settings).unwrap();
-                    file.write_all(buffer.as_bytes()).unwrap();
-                    default_user_settings
-                }
-                _ => {
+            Err(ref err) if err.kind() == ErrorKind::NotFound => {
+                log::error!("`settings.json` not found");
+                log::warn!("creating a settings file...");
+
+                if let Ok(mut file) = File::create(&path) {
+                    if let Err(err) = serde_json::to_writer(&mut file, &default_user_settings) {
+                        log::error!("failed to write default settings: {}", err);
+                    }
+                } else {
                     log::error!("failed to create `settings.json` file in {:?}", path);
-                    default_user_settings
                 }
-            },
+
+                return default_user_settings;
+            }
+            Err(err) => {
+                log::error!("failed to open `settings.json` file: {}", err);
+                default_user_settings
+            }
         }
     }
 }

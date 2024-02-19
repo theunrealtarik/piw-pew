@@ -1,3 +1,4 @@
+use crate::game::GameNetwork;
 use raylib::prelude::*;
 
 pub trait UpdateHandle {
@@ -11,16 +12,14 @@ pub trait RenderHandle {
 }
 
 pub trait NetUpdateHandle {
-    type Network;
-    fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network);
+    fn net_update(&mut self, handle: &RaylibHandle, network: &mut GameNetwork);
 }
 
 pub trait NetRenderHandle {
-    type Network;
     fn net_render(
         &mut self,
         handle: &mut RaylibMode2D<RaylibDrawHandle>,
-        network: &mut Self::Network,
+        network: &mut GameNetwork,
     ) where
         Self: AssetsHandle;
 }

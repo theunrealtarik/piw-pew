@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use lib::types::RVector2;
+use lib::WORLD_TILE_SIZE;
 use nalgebra::Vector2;
 use raylib::prelude::*;
 
@@ -18,7 +19,7 @@ pub struct Player {
     pub velocity: Vector2<f32>,
     pub direction: Vector2<f32>,
     pub hp: i8,
-    pub visible: bool,
+    pub ready: bool,
     assets: Rc<RefCell<Assets>>,
 }
 
@@ -46,7 +47,7 @@ impl Player {
                     rectangle.y + player::PLAYER_CAMERA_OFFSET,
                 ),
             },
-            visible: false,
+            ready: false,
             velocity: Vector2::new(
                 player::PLAYER_INIT_VELOCITY_X,
                 player::PLAYER_INIT_VELOCITY_Y,

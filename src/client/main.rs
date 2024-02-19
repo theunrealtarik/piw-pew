@@ -17,6 +17,8 @@ use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
 use env_logger;
 use game::{Game, GameAssets, GameMenu, GameNetwork, GameSettings};
 
+static INITIAL_PAYLOAD_SIZE: usize = 255;
+
 fn main() {
     env_logger::init_from_env(Logger::env());
 
@@ -36,7 +38,6 @@ fn main() {
     );
 
     let (mut handle, thread) = window.build();
-    let settings = GameSettings::load(&current_dir);
 
     let ga_loaded = match GameAssets::load(&mut handle, &thread, &current_dir.join("assets")) {
         Ok(assets) => assets,
@@ -45,10 +46,19 @@ fn main() {
             std::process::exit(1);
         }
     };
-
     let assets = Rc::new(RefCell::new(ga_loaded.assets));
 
-    let mut network = match GameNetwork::connect(server_addr, current_time, PROTOCOL_ID) {
+    let settings = GameSettings::load(&current_dir.join("settings.json"));
+    let mut data: [u8; 256] = [0; 256];
+    for (index, byte) in settings.username.bytes().enumerate() {
+        if index >= INITIAL_PAYLOAD_SIZE {
+            break;
+        }
+
+        data[index] = byte;
+    }
+
+    let mut network = match GameNetwork::connect(server_addr, current_time, PROTOCOL_ID, data) {
         Ok(net) => {
             log::info!("network layer is set");
             net
