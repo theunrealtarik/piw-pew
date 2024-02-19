@@ -146,10 +146,10 @@ impl NetUpdateHandle for Game {
                     }
                     // these run at every frame
                     GameNetworkPacket::NET_PLAYER_WORLD_POSITION(id, (x, y)) => {
-                        // if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
-                        //     enemy.rectangle.x = x;
-                        //     enemy.rectangle.y = y;
-                        // }
+                        if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
+                            enemy.rectangle.x = x;
+                            enemy.rectangle.y = y;
+                        }
                     }
                     _ => {}
                 }
@@ -221,10 +221,7 @@ impl NetRenderHandle for Game {
 
         self.player.render(d);
 
-        dbg!(&self.world.enemies.len());
-
         for enemy in self.world.enemies.values_mut() {
-            dbg!(&enemy.id);
             enemy.render(d);
         }
     }

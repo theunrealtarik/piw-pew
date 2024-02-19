@@ -179,7 +179,7 @@ fn main() {
 
         for client_id in server.clients_id() {
             while let Some(message) =
-                server.receive_message(client_id, DefaultChannel::ReliableOrdered)
+                server.receive_message(client_id, DefaultChannel::ReliableUnordered)
             {
                 if let (Ok(packet), Some(player)) = (
                     rmp_serde::from_slice::<GameNetworkPacket>(&message),
@@ -187,6 +187,7 @@ fn main() {
                 ) {
                     match packet {
                         GameNetworkPacket::NET_PLAYER_WORLD_POSITION(_, (x, y)) => {
+                            log::debug!("{} {}", x, y);
                             player.data.position = (x, y);
                             server.broadcast_message_except(
                                 client_id,
