@@ -2,7 +2,6 @@ use crate::configs::window;
 use crate::core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
 use crate::entities::{Enemy, GameWorldTile, Player};
 
-use lib::packets::PlayerData;
 use lib::WORLD_TILE_SIZE;
 use lib::{
     packets::GameNetworkPacket,
@@ -129,10 +128,11 @@ impl NetUpdateHandle for Game {
                             local_player.orientation = data.orientation;
                             local_player.rectangle.x = pos_x;
                             local_player.rectangle.y = pos_y;
+                            local_player.inventory.selected_weapon = Some(data.weapon);
                             local_player.ready = true;
                         } else {
                             let id = ClientId::from_raw(data._id);
-                            let enemy = Enemy::new(
+                            let mut enemy = Enemy::new(
                                 id,
                                 pos_x,
                                 pos_y,
@@ -141,6 +141,7 @@ impl NetUpdateHandle for Game {
                                 Rc::clone(&self.assets),
                             );
 
+                            enemy.inventory.selected_weapon = Some(data.weapon);
                             self.world.enemies.insert(id, enemy);
                         }
                     }
@@ -154,6 +155,24 @@ impl NetUpdateHandle for Game {
                     _ => {}
                 }
             };
+        }
+
+        while let Some(message) = network
+            .client
+            .receive_message(DefaultChannel::ReliableUnordered)
+        {
+            if let Ok(packet) = rmp_serde::from_slice::<GameNetworkPacket>(&message) {
+                match packet {
+                    GameNetworkPacket::NET_PLAYER_LEFT(id) => {
+                        log::info!("player {:?} left", id);
+                        self.world
+                            .enemies
+                            .remove(&ClientId::from_raw(id))
+                            .expect("failed to remove player data");
+                    }
+                    _ => {}
+                }
+            }
         }
 
         // local player stuff

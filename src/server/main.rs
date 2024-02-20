@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use lib::logging::Logger;
 use lib::net::{DELTA_TIME, PROTOCOL_ID, SERVER_MAX_CLIENTS};
-use lib::packets::{GameNetworkPacket, PlayerData};
+use lib::packets::{GameNetworkPacket, PlayerData, WeaponVariant};
 use lib::types::{Tile, Tiles};
 
 use renet::{
@@ -44,6 +44,7 @@ impl Client {
                 orientation: 0.0,
                 name,
                 hp: 100,
+                weapon: WeaponVariant::DEAN_1911,
             },
         }
     }
@@ -165,6 +166,12 @@ fn main() {
                 ServerEvent::ClientDisconnected { client_id, reason } => {
                     state.players_count -= 1;
                     state.players.remove(&client_id);
+                    server.broadcast_message(
+                        DefaultChannel::ReliableUnordered,
+                        GameNetworkPacket::NET_PLAYER_LEFT(client_id.raw())
+                            .serialized()
+                            .unwrap(),
+                    );
                     log::warn!(
                         "client disconnected {} ({}/{})",
                         client_id,

@@ -11,13 +11,15 @@ use crate::{
     game::Assets,
 };
 
-#[derive(Debug)]
+use super::Invenotry;
+
 pub struct Enemy {
     pub id: ClientId,
     pub orientation: f32,
     pub rectangle: Rectangle,
     pub origin: Vector2<f32>,
     pub hp: u8,
+    pub inventory: Invenotry,
     assets: Rc<RefCell<Assets>>,
 }
 
@@ -36,6 +38,7 @@ impl Enemy {
             rectangle: Rectangle::new(x, y, PLAYER_TILE_SIZE as f32, PLAYER_TILE_SIZE as f32),
             origin: Default::default(),
             hp,
+            inventory: Invenotry::new(),
             assets,
         }
     }

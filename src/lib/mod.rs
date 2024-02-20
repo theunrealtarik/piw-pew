@@ -38,7 +38,19 @@ pub mod packets {
         pub position: (f32, f32),
         pub orientation: f32,
         pub name: String,
+        pub weapon: WeaponVariant,
         pub hp: u8,
+    }
+
+    pub type Cash = u64;
+    pub type RawClientId = u64;
+
+    #[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
+    pub enum WeaponVariant {
+        DEAN_1911,
+        AKA_69,
+        SHOTPEW,
+        PRRR,
     }
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -46,10 +58,12 @@ pub mod packets {
         NET_WORLD_MAP(HashMap<(usize, usize), super::types::Tile>),
         NET_WORLD_PLAYERS(HashMap<u64, PlayerData>),
         NET_PLAYER_JOINED(PlayerData),
-        NET_PLAYER_GRID_POSITION(u64, (usize, usize)),
-        NET_PLAYER_WORLD_POSITION(u64, (f32, f32)),
+        NET_PLAYER_GRID_POSITION(RawClientId, (usize, usize)),
+        NET_PLAYER_WORLD_POSITION(RawClientId, (f32, f32)),
         NET_PLAYER_ORIENTATION_ANGLE(u64, usize),
-        NET_PLAYER_LEFT(u64),
+        NET_PLAYER_LEFT(RawClientId),
+        NET_PLAYER_WEAPON_REQUEST(Cash, WeaponVariant),
+        NET_PLAYER_WEAPON_RESPONSE(RawClientId, WeaponVariant),
     }
 
     impl GameNetworkPacket {

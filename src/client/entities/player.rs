@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use lib::types::RVector2;
 use lib::PLAYER_TILE_SIZE;
+
 use nalgebra::Vector2;
 use raylib::prelude::*;
 
@@ -9,10 +10,12 @@ use crate::configs::{window, *};
 use crate::core::*;
 use crate::game::Assets;
 
+use super::Invenotry;
+
 #[allow(dead_code)]
-#[derive(Debug)]
 pub struct Player {
     pub name: String,
+    pub inventory: Invenotry,
     pub orientation: f32,
     pub rectangle: Rectangle,
     pub origin: Vector2<f32>,
@@ -36,6 +39,7 @@ impl Player {
 
         Self {
             name,
+            inventory: Invenotry::new(),
             orientation: 0.0,
             rectangle,
             origin,
