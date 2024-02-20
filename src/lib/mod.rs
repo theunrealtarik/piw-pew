@@ -28,6 +28,7 @@ pub mod logging {
 pub mod packets {
     extern crate rmp_serde as rmps;
 
+    use rmps::Serializer;
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
@@ -48,6 +49,18 @@ pub mod packets {
         NET_PLAYER_GRID_POSITION(u64, (usize, usize)),
         NET_PLAYER_WORLD_POSITION(u64, (f32, f32)),
         NET_PLAYER_ORIENTATION_ANGLE(u64, usize),
+        NET_PLAYER_LEFT(u64),
+    }
+
+    impl GameNetworkPacket {
+        pub fn serialized(&self) -> Result<Vec<u8>, String> {
+            let mut buffer: Vec<u8> = Vec::new();
+            if let Ok(packet) = self.serialize(&mut Serializer::new(&mut buffer)) {
+                return Ok(buffer);
+            }
+
+            Err(String::from("failed to serialize packet object"))
+        }
     }
 }
 

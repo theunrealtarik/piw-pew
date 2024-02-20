@@ -139,8 +139,7 @@ fn main() {
                             map_buffer.clone(),
                         );
 
-                        let mut enemies_buffer = Vec::new();
-                        GameNetworkPacket::NET_WORLD_PLAYERS(
+                        let enemies_buffer = GameNetworkPacket::NET_WORLD_PLAYERS(
                             state
                                 .get_players_raw()
                                 .into_iter()
@@ -148,17 +147,17 @@ fn main() {
                                 .into_iter()
                                 .collect(),
                         )
-                        .serialize(&mut Serializer::new(&mut enemies_buffer))
+                        .serialized()
                         .unwrap();
+
                         server.send_message(
                             client_id,
                             DefaultChannel::ReliableOrdered,
                             enemies_buffer,
                         );
 
-                        let mut rng_buffer = Vec::new();
-                        GameNetworkPacket::NET_PLAYER_JOINED(player.data)
-                            .serialize(&mut Serializer::new(&mut rng_buffer))
+                        let rng_buffer = GameNetworkPacket::NET_PLAYER_JOINED(player.data)
+                            .serialized()
                             .unwrap();
                         server.broadcast_message(DefaultChannel::ReliableOrdered, rng_buffer);
                     };
@@ -187,7 +186,6 @@ fn main() {
                 ) {
                     match packet {
                         GameNetworkPacket::NET_PLAYER_WORLD_POSITION(_, (x, y)) => {
-                            log::debug!("{} {}", x, y);
                             player.data.position = (x, y);
                             server.broadcast_message_except(
                                 client_id,
