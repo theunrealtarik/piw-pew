@@ -1,14 +1,14 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use lib::types::{RVector2, SharedAssets};
-use lib::PLAYER_TILE_SIZE;
+use lib::ENTITY_PLAYER_SIZE;
 
-use nalgebra::Vector2;
+use nalgebra::{ComplexField, Vector2};
 use raylib::prelude::*;
 
 use crate::configs::{window, *};
 use crate::core::*;
-use crate::game::Assets;
+use crate::game::{Assets, FONT};
 
 use super::Invenotry;
 
@@ -32,8 +32,8 @@ impl Player {
         let rectangle = Rectangle::new(
             window::WINDOW_CENTER_X,
             window::WINDOW_CENTER_Y,
-            PLAYER_TILE_SIZE,
-            PLAYER_TILE_SIZE,
+            ENTITY_PLAYER_SIZE,
+            ENTITY_PLAYER_SIZE,
         );
         let origin = Vector2::new(rectangle.width / 2.0, rectangle.height / 2.0);
 
@@ -110,21 +110,100 @@ impl UpdateHandle for Player {
         );
 
         let mouse_pos = handle.get_mouse_position();
-        let mouse_x = mouse_pos.x as f32 - player_pos.x;
-        let mouse_y = mouse_pos.y as f32 - player_pos.y;
+        let mouse_x = mouse_pos.x as f32 - (player_pos.x + ENTITY_PLAYER_SIZE / 2.0);
+        let mouse_y = mouse_pos.y as f32 - (player_pos.y + ENTITY_PLAYER_SIZE / 2.0);
 
-        // self.orientation = mouse_y.atan2(mouse_x).to_degrees();
+        self.orientation = mouse_y.atan2(mouse_x);
     }
 }
 
 impl RenderHandle for Player {
     fn render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
-        d.draw_rectangle_pro(
-            self.rectangle,
-            RVector2::zero(),
-            self.orientation,
-            player::PLAYER_COLOR,
+        d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, player::PLAYER_COLOR);
+
+        let (ocos, osin) = (self.orientation.cos(), self.orientation.sin());
+
+        let radius = self.rectangle.width / 2.0;
+        let origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
+        let coords = Vector2::new(radius * ocos, radius * osin) + origin;
+        let theta = self.orientation.to_degrees();
+
+        let (flip_x, flip_y) = (
+            if theta.abs() >= 0.0 && theta.abs() <= 90.0 {
+                false
+            } else {
+                true
+            },
+            if theta.abs() <= 180.0 && theta.abs() > 90.0 {
+                true
+            } else {
+                false
+            },
         );
+
+        self.inventory.render_weapon(
+            d,
+            Rc::clone(&self.assets),
+            (coords.x, coords.y),
+            (flip_x, flip_y),
+            theta,
+        );
+
+        // debug stuff
+        #[cfg(debug_assertions)]
+        {
+            let assets = self.assets.borrow();
+            let font = assets.fonts.get(&FONT::FNT_JET).unwrap();
+            let debug = Vector2::new(self.rectangle.x, self.rectangle.y)
+                .add_scalar(-2.0 * ENTITY_PLAYER_SIZE);
+            let mouse_pos = d.get_screen_to_world2D(d.get_mouse_position(), self.camera);
+
+            let lx = Vector2::new(
+                self.rectangle.x,
+                self.rectangle.y + ENTITY_PLAYER_SIZE / 2.0,
+            );
+            let ly = Vector2::new(
+                self.rectangle.x + ENTITY_PLAYER_SIZE / 2.0,
+                self.rectangle.y,
+            );
+
+            d.draw_line_v(
+                RVector2::new(lx.x, lx.y),
+                RVector2::new(lx.add_scalar(ENTITY_PLAYER_SIZE).x, lx.y),
+                Color::BLUE,
+            );
+
+            d.draw_line_v(
+                RVector2::new(ly.x, ly.y),
+                RVector2::new(ly.x, ly.add_scalar(ENTITY_PLAYER_SIZE).y),
+                Color::BLUE,
+            );
+
+            d.draw_line(
+                origin.x as i32,
+                origin.y as i32,
+                mouse_pos.x as i32,
+                mouse_pos.y as i32,
+                Color::GREEN,
+            );
+
+            d.draw_circle_lines(origin.x as i32, origin.y as i32, radius, Color::RED);
+            d.draw_text_ex(
+                font,
+                &format!(
+                    "theta {theta:.2}\n|theta| {}\nSIN(theta) {osin}\nCOS(theta) {ocos}\n\nFLIP ({flip_x} {flip_y})\n", theta.abs()
+                ),
+                RVector2 {
+                    x: debug.x,
+                    y: debug.y,
+                },
+                20.0,
+                1.0,
+                Color::RED,
+            );
+
+            d.draw_circle(coords.x as i32, coords.y as i32, 4.0, Color::RED);
+        }
     }
 }
 

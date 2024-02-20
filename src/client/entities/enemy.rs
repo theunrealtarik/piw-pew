@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use lib::{
     types::{RVector2, SharedAssets},
-    PLAYER_TILE_SIZE,
+    ENTITY_PLAYER_SIZE,
 };
 use nalgebra::Vector2;
 
@@ -38,7 +38,7 @@ impl Enemy {
         Self {
             id,
             orientation,
-            rectangle: Rectangle::new(x, y, PLAYER_TILE_SIZE as f32, PLAYER_TILE_SIZE as f32),
+            rectangle: Rectangle::new(x, y, ENTITY_PLAYER_SIZE as f32, ENTITY_PLAYER_SIZE as f32),
             origin: Default::default(),
             hp,
             inventory: Invenotry::new(),

@@ -3,19 +3,17 @@ mod core;
 mod entities;
 mod game;
 
-use configs::window;
+use core::{NetRenderHandle, NetUpdateHandle, RenderHandle};
 use lib::{
     logging::Logger,
     net::{DELTA_TIME, PROTOCOL_ID},
 };
 
-use core::{NetRenderHandle, NetUpdateHandle, RenderHandle};
-
-use raylib::drawing::{RaylibDraw, RaylibMode2DExt};
-use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
-
 use env_logger;
 use game::{Game, GameAssets, GameMenu, GameNetwork, GameSettings};
+use raylib::prelude::*;
+
+use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
 
 static INITIAL_PAYLOAD_SIZE: usize = 255;
 
@@ -29,15 +27,13 @@ fn main() {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
 
-    let mut window = raylib::init();
-
-    window.title(configs::window::WINDOW_NAME);
-    window.size(
-        configs::window::WINDOW_WIDTH,
-        configs::window::WINDOW_HEIGHT,
-    );
-
-    let (mut handle, thread) = window.build();
+    let (mut handle, thread) = raylib::init()
+        .title(configs::window::WINDOW_NAME)
+        .size(
+            configs::window::WINDOW_WIDTH,
+            configs::window::WINDOW_HEIGHT,
+        )
+        .build();
 
     let ga_loaded = match GameAssets::load(&mut handle, &thread, &current_dir.join("assets")) {
         Ok(assets) => assets,
@@ -86,7 +82,7 @@ fn main() {
         }
 
         let mut draw = handle.begin_drawing(&thread);
-        draw.clear_background(window::WINDOW_BACKGROUND_COLOR);
+        draw.clear_background(configs::window::WINDOW_BACKGROUND_COLOR);
 
         let mut draw_2d = draw.begin_mode2D(game.player.camera);
 
@@ -97,7 +93,10 @@ fn main() {
         }
 
         std::mem::drop(draw_2d);
-        draw.draw_fps(window::WINDOW_TOP_LEFT_X, window::WINDOW_TOP_LEFT_Y);
+        draw.draw_fps(
+            configs::window::WINDOW_TOP_LEFT_X,
+            configs::window::WINDOW_TOP_LEFT_Y,
+        );
 
         match network.transport.send_packets(&mut network.client) {
             Ok(_) => {}

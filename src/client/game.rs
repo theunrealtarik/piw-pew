@@ -1,6 +1,6 @@
 use crate::configs::window;
 use crate::core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
-use crate::entities::{Enemy, GameWorldTile, Player};
+use crate::entities::{Enemy, GameWorldTile, Player, Weapon};
 
 use lib::types::SharedAssets;
 use lib::WORLD_TILE_SIZE;
@@ -97,23 +97,26 @@ impl NetUpdateHandle for Game {
                         self.world.tiles = tiles;
                     }
                     GameNetworkPacket::NET_WORLD_PLAYERS(players) => {
-                        log::debug!("{:?}", players);
-
                         self.world.enemies = players
                             .into_iter()
                             .map(|(id, data)| {
                                 let client_id = ClientId::from_raw(id);
-                                (
+                                let mut enemy = Enemy::new(
                                     client_id,
-                                    Enemy::new(
-                                        client_id,
-                                        data.position.0,
-                                        data.position.1,
-                                        data.orientation,
-                                        data.hp,
-                                        Rc::clone(&self.assets),
-                                    ),
-                                )
+                                    data.position.0,
+                                    data.position.1,
+                                    data.orientation,
+                                    data.hp,
+                                    Rc::clone(&self.assets),
+                                );
+
+                                enemy.inventory.selected_weapon = Some(data.weapon);
+                                enemy
+                                    .inventory
+                                    .weapons
+                                    .insert(data.weapon, Weapon::new(data.weapon));
+
+                                (client_id, enemy)
                             })
                             .collect::<Vec<(ClientId, Enemy)>>()
                             .into_iter()
@@ -128,8 +131,13 @@ impl NetUpdateHandle for Game {
                             local_player.orientation = data.orientation;
                             local_player.rectangle.x = pos_x;
                             local_player.rectangle.y = pos_y;
-                            local_player.inventory.selected_weapon = Some(data.weapon);
                             local_player.ready = true;
+
+                            local_player.inventory.selected_weapon = Some(data.weapon);
+                            local_player
+                                .inventory
+                                .weapons
+                                .insert(data.weapon, Weapon::new(data.weapon));
                         } else {
                             let id = ClientId::from_raw(data._id);
                             let mut enemy = Enemy::new(
@@ -142,6 +150,10 @@ impl NetUpdateHandle for Game {
                             );
 
                             enemy.inventory.selected_weapon = Some(data.weapon);
+                            enemy
+                                .inventory
+                                .weapons
+                                .insert(data.weapon, Weapon::new(data.weapon));
                             self.world.enemies.insert(id, enemy);
                         }
                     }
@@ -216,6 +228,10 @@ impl NetUpdateHandle for Game {
 impl NetRenderHandle for Game {
     fn net_render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>, network: &mut GameNetwork) {
         let assets = self.assets.borrow();
+
+        if !self.player.ready {
+            return;
+        }
 
         if self.world.tiles.len() > 0 {
             for tile in self.world.tiles.values() {
@@ -316,7 +332,13 @@ macro_rules! asset {
         };
     }
 
-asset!("ttf", FONT { FNT_POPPINS });
+asset!(
+    "ttf",
+    FONT {
+        FNT_POPPINS,
+        FNT_JET
+    }
+);
 asset!(
     "png",
     TEXTURE {

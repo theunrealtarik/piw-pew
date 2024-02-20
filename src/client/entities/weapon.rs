@@ -7,13 +7,14 @@ use lib::packets::WeaponVariant;
 
 use crate::game::TEXTURE;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum WeaponAccuracy {
     Low,
     Moderate,
     High,
 }
 
+#[derive(Debug)]
 pub struct WeaponStats {
     pub name: &'static str,
     pub damage: u8,
@@ -90,6 +91,7 @@ lazy_static! {
     );
 }
 
+#[derive(Debug)]
 pub struct Weapon {
     pub variant: WeaponVariant,
     pub texture: TEXTURE,

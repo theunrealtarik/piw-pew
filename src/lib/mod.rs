@@ -1,7 +1,8 @@
 #![allow(non_camel_case_types)]
 
-pub static WORLD_TILE_SIZE: f32 = 50.0;
-pub static PLAYER_TILE_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
+pub static WORLD_TILE_SIZE: f32 = 100.0;
+pub static ENTITY_PLAYER_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
+pub static ENTITY_WEAPON_SIZE: f32 = ENTITY_PLAYER_SIZE * 0.003;
 
 pub mod net {
     use std::time::Duration;
@@ -45,7 +46,7 @@ pub mod packets {
     pub type Cash = u64;
     pub type RawClientId = u64;
 
-    #[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, Deserialize, Serialize)]
     pub enum WeaponVariant {
         DEAN_1911,
         AKA_69,
