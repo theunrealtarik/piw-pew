@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use lib::types::RVector2;
+use lib::types::{RVector2, SharedAssets};
 use lib::PLAYER_TILE_SIZE;
 
 use nalgebra::Vector2;
@@ -24,11 +24,11 @@ pub struct Player {
     pub direction: Vector2<f32>,
     pub hp: i8,
     pub ready: bool,
-    assets: Rc<RefCell<Assets>>,
+    assets: SharedAssets<Assets>,
 }
 
 impl Player {
-    pub fn new(name: String, assets: Rc<RefCell<Assets>>) -> Self {
+    pub fn new(name: String, assets: SharedAssets<Assets>) -> Self {
         let rectangle = Rectangle::new(
             window::WINDOW_CENTER_X,
             window::WINDOW_CENTER_Y,
@@ -129,7 +129,7 @@ impl RenderHandle for Player {
 }
 
 impl AssetsHandle for Player {
-    type GameAssets = Rc<RefCell<Assets>>;
+    type GameAssets = SharedAssets<Assets>;
 
     fn get_assets(&self) -> Self::GameAssets {
         Rc::clone(&self.assets)

@@ -1,6 +1,9 @@
 use std::{cell::RefCell, rc::Rc};
 
-use lib::{types::RVector2, PLAYER_TILE_SIZE};
+use lib::{
+    types::{RVector2, SharedAssets},
+    PLAYER_TILE_SIZE,
+};
 use nalgebra::Vector2;
 
 use raylib::prelude::*;
@@ -20,7 +23,7 @@ pub struct Enemy {
     pub origin: Vector2<f32>,
     pub hp: u8,
     pub inventory: Invenotry,
-    assets: Rc<RefCell<Assets>>,
+    assets: SharedAssets<Assets>,
 }
 
 impl Enemy {
@@ -30,7 +33,7 @@ impl Enemy {
         y: f32,
         orientation: f32,
         hp: u8,
-        assets: Rc<RefCell<Assets>>,
+        assets: SharedAssets<Assets>,
     ) -> Self {
         Self {
             id,
@@ -59,7 +62,7 @@ impl RenderHandle for Enemy {
 }
 
 impl AssetsHandle for Enemy {
-    type GameAssets = Rc<RefCell<Assets>>;
+    type GameAssets = SharedAssets<Assets>;
 
     fn get_assets(&self) -> Self::GameAssets {
         Rc::clone(&self.assets)

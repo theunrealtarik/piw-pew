@@ -80,10 +80,13 @@ pub mod packets {
 
 pub mod types {
     extern crate nalgebra as na;
+    use std::{cell::RefCell, rc::Rc};
+
     use serde::{Deserialize, Serialize};
 
     pub type RVector2 = raylib::core::math::Vector2;
     pub type Color = raylib::color::Color;
+    pub type SharedAssets<T> = Rc<RefCell<T>>;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
     pub enum Tile {

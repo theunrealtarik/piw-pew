@@ -2,6 +2,7 @@ use crate::configs::window;
 use crate::core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
 use crate::entities::{Enemy, GameWorldTile, Player};
 
+use lib::types::SharedAssets;
 use lib::WORLD_TILE_SIZE;
 use lib::{
     packets::GameNetworkPacket,
@@ -24,7 +25,6 @@ extern crate serde;
 extern crate serde_derive;
 
 use std::{
-    cell::RefCell,
     collections::HashMap,
     fs::File,
     io::{Error, ErrorKind, Read},
@@ -38,13 +38,13 @@ use strum_macros::{Display, EnumIter, VariantArray};
 use uuid::Uuid;
 
 pub struct Game {
-    pub assets: Rc<RefCell<Assets>>,
+    pub assets: SharedAssets<Assets>,
     pub player: Player,
     pub world: GameWorld,
 }
 
 impl Game {
-    pub fn new(assets: Rc<RefCell<Assets>>, settings: GameSettings) -> Self {
+    pub fn new(assets: SharedAssets<Assets>, settings: GameSettings) -> Self {
         Self {
             assets: Rc::clone(&assets),
             player: Player::new(settings.username, Rc::clone(&assets)),
@@ -247,7 +247,7 @@ impl NetRenderHandle for Game {
 }
 
 impl AssetsHandle for Game {
-    type GameAssets = Rc<RefCell<Assets>>;
+    type GameAssets = SharedAssets<Assets>;
 
     fn get_assets(&self) -> Self::GameAssets {
         Rc::clone(&self.assets)
@@ -418,12 +418,12 @@ impl GameAssets {
 
 // game menu
 pub struct GameMenu {
-    assets: Rc<RefCell<Assets>>,
+    assets: SharedAssets<Assets>,
     rotation: f32,
 }
 
 impl GameMenu {
-    pub fn new(assets: Rc<RefCell<Assets>>) -> Self {
+    pub fn new(assets: SharedAssets<Assets>) -> Self {
         Self {
             assets,
             rotation: 0.0,
@@ -487,7 +487,7 @@ impl RenderHandle for GameMenu {
 }
 
 impl AssetsHandle for GameMenu {
-    type GameAssets = Rc<RefCell<Assets>>;
+    type GameAssets = SharedAssets<Assets>;
     fn get_assets(&self) -> Self::GameAssets {
         Rc::clone(&self.assets)
     }
