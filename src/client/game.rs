@@ -1,14 +1,14 @@
 use crate::configs::window;
 use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UpdateHandle, UserInterfaceHandle};
-use crate::entities::{Enemy, GameWorldTile, Player, Weapon};
+use crate::entities::{Enemy, GameWorldTile, Player, Projectile, Weapon};
 
 use lib::types::SharedAssets;
 use lib::utils::POINT_OFFSETS;
-use lib::WORLD_TILE_SIZE;
 use lib::{
     packets::GameNetworkPacket,
     types::{RVector2, Tile},
 };
+use lib::{ENTITY_PROJECTILE_SPEED, WORLD_TILE_SIZE};
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
@@ -25,6 +25,7 @@ extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
+use std::time::Instant;
 use std::{
     collections::HashMap,
     fs::File,
@@ -38,10 +39,18 @@ use strum::VariantArray;
 use strum_macros::{Display, EnumIter, VariantArray};
 use uuid::Uuid;
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Timers {
+    WeaponShot(Duration),
+    PlayerRepsawn,
+}
+
 pub struct Game {
     pub assets: SharedAssets<Assets>,
     pub player: Player,
     pub world: GameWorld,
+    timers: GameTimer<Timers>,
 }
 
 impl Game {
@@ -50,6 +59,7 @@ impl Game {
             assets: Rc::clone(&assets),
             player: Player::new(settings.username, Rc::clone(&assets)),
             world: GameWorld::new(),
+            timers: GameTimer::default(),
         }
     }
 }
@@ -111,11 +121,8 @@ impl NetUpdateHandle for Game {
                                     Rc::clone(&self.assets),
                                 );
 
-                                enemy.inventory.selected_weapon = Some(data.weapon);
-                                enemy
-                                    .inventory
-                                    .weapons
-                                    .insert(data.weapon, Weapon::new(data.weapon));
+                                enemy.inventory.select(data.weapon);
+                                enemy.inventory.add(data.weapon, Weapon::new(data.weapon));
 
                                 (client_id, enemy)
                             })
@@ -134,11 +141,10 @@ impl NetUpdateHandle for Game {
                             local_player.rectangle.y = pos_y;
                             local_player.ready = true;
 
-                            local_player.inventory.selected_weapon = Some(data.weapon);
+                            local_player.inventory.select(data.weapon);
                             local_player
                                 .inventory
-                                .weapons
-                                .insert(data.weapon, Weapon::new(data.weapon));
+                                .add(data.weapon, Weapon::new(data.weapon));
                         } else {
                             let id = ClientId::from_raw(data._id);
                             let mut enemy = Enemy::new(
@@ -150,11 +156,8 @@ impl NetUpdateHandle for Game {
                                 Rc::clone(&self.assets),
                             );
 
-                            enemy.inventory.selected_weapon = Some(data.weapon);
-                            enemy
-                                .inventory
-                                .weapons
-                                .insert(data.weapon, Weapon::new(data.weapon));
+                            enemy.inventory.select(data.weapon);
+                            enemy.inventory.add(data.weapon, Weapon::new(data.weapon));
                             self.world.enemies.insert(id, enemy);
                         }
                     }
@@ -190,15 +193,28 @@ impl NetUpdateHandle for Game {
 
         // local player stuff
         local_player.update(handle);
-        let position = local_player.on_move(handle);
-        let tiles = self.world.tiles.len() as f32;
-        let side_length = tiles.sqrt() * WORLD_TILE_SIZE;
 
-        if position.x > 0.0
-            && position.x < side_length - local_player.rectangle.width
-            && position.y > 0.0
-            && position.y < side_length - local_player.rectangle.height
-        {
+        let position = local_player.on_move(handle);
+
+        if self.world.in_of_bounds(
+            position.x,
+            position.y,
+            local_player.rectangle.width,
+            local_player.rectangle.height,
+        ) {
+            local_player.on_shoot(handle, |wpn, muzzle, theta| {
+                if self
+                    .timers
+                    .after(Timers::WeaponShot(wpn.stats.fire_time), wpn.stats.fire_time)
+                {
+                    self.world.projectiles.push(Projectile::new(
+                        muzzle,
+                        ENTITY_PROJECTILE_SPEED,
+                        theta,
+                    ));
+                }
+            });
+
             let rectangle = Rectangle::new(
                 position.x,
                 position.y,
@@ -284,6 +300,10 @@ impl RenderHandle for Game {
 
         for enemy in self.world.enemies.values_mut() {
             enemy.render(d);
+        }
+
+        for projectile in &mut self.world.projectiles {
+            projectile.render(d);
         }
     }
 }
@@ -379,7 +399,8 @@ asset!(
         TILE_WALL_TOP,
         TILE_GROUND,
         UI_LOADING,
-        UI_LOGO
+        UI_LOGO,
+        ENV_BULLET
     }
 );
 
@@ -593,6 +614,7 @@ impl GameSettings {
 
 pub struct GameWorld {
     tiles: HashMap<(i32, i32), GameWorldTile>,
+    projectiles: Vec<Projectile>,
     enemies: HashMap<ClientId, Enemy>,
 }
 
@@ -601,6 +623,7 @@ impl GameWorld {
         Self {
             tiles: HashMap::new(),
             enemies: HashMap::new(),
+            projectiles: Vec::new(),
         }
     }
 
@@ -613,22 +636,81 @@ impl GameWorld {
             .map(|(gx, gy)| self.tiles.get(&(gx, gy)))
             .collect::<Vec<_>>()
     }
+
+    fn render_projectiles(&mut self) {}
+
+    fn bounds(&self) -> (f32, f32) {
+        let length = (self.tiles.len() as f32).sqrt() * WORLD_TILE_SIZE;
+        (length, length)
+    }
+
+    fn in_of_bounds(&self, x: f32, y: f32, width: f32, height: f32) -> bool {
+        let bounds = self.bounds();
+
+        x > 0.0 && x <= bounds.0 - width && y > 0.0 && y < bounds.1 - height
+    }
 }
 
 impl UserInterfaceHandle for Game {
     fn display(&mut self, d: &mut RaylibDrawHandle) {
         let local_player = &self.player;
 
-        if let Some(selected) = local_player.inventory.selected_weapon {
-            if let Some(weapon) = local_player.inventory.weapons.get(&selected) {
-                let ammo = format!(
-                    "{}/{}",
-                    weapon.stats.curr_mag_size,
-                    weapon.stats.curr_total_ammo - weapon.stats.curr_total_ammo
-                );
+        if let Some(wpn) = local_player.inventory.selected_weapon() {
+            let ammo = format!(
+                "{}/{}",
+                wpn.stats.curr_mag_size,
+                wpn.stats.curr_total_ammo - wpn.stats.curr_total_ammo
+            );
 
-                d.draw_text(&ammo, 10, 10, 24, Color::WHITE);
+            d.draw_text(&ammo, 10, 10, 24, Color::WHITE);
+        }
+    }
+}
+
+struct GameTimer<T: Copy + PartialEq + Eq + std::hash::Hash> {
+    value: HashMap<T, Timer<T>>,
+}
+
+impl<T: Copy + PartialEq + Eq + std::hash::Hash> Default for GameTimer<T> {
+    fn default() -> Self {
+        Self {
+            value: HashMap::new(),
+        }
+    }
+}
+
+impl<T: Copy + Eq + std::hash::Hash> GameTimer<T> {
+    fn after(&mut self, id: T, duration: Duration) -> bool {
+        match self.value.get_mut(&id) {
+            Some(timer) => {
+                let now = Instant::now();
+                let dt = now - timer.instant;
+
+                if dt >= duration {
+                    timer.instant = Instant::now();
+                    true
+                } else {
+                    false
+                }
             }
+            None => {
+                self.value.insert(id, Timer::new(id));
+                false
+            }
+        }
+    }
+}
+
+struct Timer<I> {
+    instant: Instant,
+    identifier: I,
+}
+
+impl<I> Timer<I> {
+    fn new(identifier: I) -> Self {
+        Self {
+            instant: Instant::now(),
+            identifier,
         }
     }
 }

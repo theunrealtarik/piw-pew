@@ -3,6 +3,7 @@
 pub static WORLD_TILE_SIZE: f32 = 100.0;
 pub static ENTITY_PLAYER_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
 pub static ENTITY_WEAPON_SIZE: f32 = ENTITY_PLAYER_SIZE * 0.0018;
+pub static ENTITY_PROJECTILE_SPEED: u32 = 50;
 
 pub mod net {
     use std::time::Duration;
@@ -35,7 +36,7 @@ pub mod packets {
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
     pub struct PlayerData {
-        pub _id: u64,
+        pub _id: RawClientId,
         pub position: (f32, f32),
         pub orientation: f32,
         pub name: String,
@@ -55,6 +56,16 @@ pub mod packets {
     }
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+    pub struct ProjectileData {
+        pub position: (f32, f32),
+        pub velocity: (f32, f32),
+        pub grid: (i32, i32),
+        pub orientation: f32,
+        pub shooter: RawClientId,
+        pub weapon: WeaponVariant,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
     pub enum GameNetworkPacket {
         NET_WORLD_MAP(HashMap<(i32, i32), super::types::Tile>),
         NET_WORLD_PLAYERS(HashMap<u64, PlayerData>),
@@ -65,6 +76,8 @@ pub mod packets {
         NET_PLAYER_LEFT(RawClientId),
         NET_PLAYER_WEAPON_REQUEST(Cash, WeaponVariant),
         NET_PLAYER_WEAPON_RESPONSE(RawClientId, WeaponVariant),
+        NET_PROJECTILE_CREATE(ProjectileData),
+        NET_PROJECTILE_IMPACT(ProjectileData),
     }
 
     impl GameNetworkPacket {

@@ -41,7 +41,7 @@ impl Enemy {
             rectangle: Rectangle::new(x, y, ENTITY_PLAYER_SIZE as f32, ENTITY_PLAYER_SIZE as f32),
             origin: Default::default(),
             hp,
-            inventory: Invenotry::new(),
+            inventory: Invenotry::new(Rc::clone(&assets)),
             assets,
         }
     }

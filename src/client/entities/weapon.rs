@@ -18,9 +18,9 @@ pub enum WeaponAccuracy {
 pub struct WeaponStats {
     name: &'static str,
     damage: u8,
-    pub fire_rate: u8,
     pub accuracy: WeaponAccuracy,
     pub reload_time: Duration,
+    pub fire_time: Duration,
     mag_size: u8,
     total_ammo: u8,
     pub curr_mag_size: u8,
@@ -31,8 +31,8 @@ impl WeaponStats {
     pub fn new(
         name: &'static str,
         damage: u8,
-        fire_rate: u8,
         accuracy: WeaponAccuracy,
+        fire_time: Duration,
         reload_time: Duration,
         mag_size: u8,
         mags: u8,
@@ -40,14 +40,18 @@ impl WeaponStats {
         Self {
             name,
             damage,
-            fire_rate,
             accuracy,
             reload_time,
+            fire_time,
             mag_size,
             total_ammo: mag_size * mags,
             curr_mag_size: mag_size,
             curr_total_ammo: mag_size * mags,
         }
+    }
+
+    fn name(&self) -> &str {
+        &self.name
     }
 
     fn damage(&self) -> &u8 {
@@ -60,8 +64,8 @@ lazy_static! {
     static ref WPN_STATS_AKA_69: WeaponStats = WeaponStats::new(
         "AKA-69",
         40,
-        5,
         WeaponAccuracy::Moderate,
+        Duration::from_millis(100),
         Duration::from_millis(1500),
         30,
         4
@@ -69,8 +73,8 @@ lazy_static! {
     static ref WPN_STATS_SHOTPEW: WeaponStats = WeaponStats::new(
         "PUMP Shotpew",
         25,
-        1,
         WeaponAccuracy::Low,
+        Duration::from_millis(1000),
         Duration::from_millis(2000),
         5,
         5
@@ -78,8 +82,8 @@ lazy_static! {
     static ref WPN_STATS_DEAN_1911: WeaponStats = WeaponStats::new(
         "DEAN 1911",
         25,
-        7,
         WeaponAccuracy::High,
+        Duration::from_millis(300),
         Duration::from_millis(1100),
         7,
         4
@@ -87,83 +91,74 @@ lazy_static! {
     static ref WPN_STATS_PRRR: WeaponStats = WeaponStats::new(
         "PRRR",
         45,
-        15,
         WeaponAccuracy::Low,
+        Duration::from_millis(50),
         Duration::from_millis(2500),
         30,
         4
     );
 }
 
+macro_rules! wpn_stats_mapping {
+    ($($field:ident),*) => {
+        #[derive(Debug)]
+        pub enum WeaponStatsMapping {
+            $($field),*
+        }
+
+        impl WeaponStatsMapping {
+            pub fn get(&self) -> &WeaponStats {
+                match self {
+                    $(WeaponStatsMapping::$field => &$field),*
+                }
+            }
+        }
+    };
+}
+
+wpn_stats_mapping!(
+    WPN_STATS_AKA_69,
+    WPN_STATS_SHOTPEW,
+    WPN_STATS_DEAN_1911,
+    WPN_STATS_PRRR
+);
+
 #[derive(Debug)]
 pub struct Weapon {
     pub variant: WeaponVariant,
     pub texture: TEXTURE,
-    pub stats: WeaponStats,
+    pub muzzle: (f32, f32),
+    pub stats: &'static WeaponStats,
 }
 
 impl Weapon {
     pub fn new(variant: WeaponVariant) -> Self {
+        let _ = WeaponStatsMapping::WPN_STATS_AKA_69.get();
+
         match variant {
             WeaponVariant::DEAN_1911 => Weapon {
                 variant,
                 texture: TEXTURE::WPN_DEAN,
-                stats: WeaponStats {
-                    name: WPN_STATS_DEAN_1911.name,
-                    damage: WPN_STATS_DEAN_1911.damage,
-                    fire_rate: WPN_STATS_DEAN_1911.fire_rate,
-                    accuracy: WPN_STATS_DEAN_1911.accuracy.clone(),
-                    reload_time: WPN_STATS_DEAN_1911.reload_time,
-                    mag_size: WPN_STATS_DEAN_1911.mag_size,
-                    total_ammo: WPN_STATS_DEAN_1911.total_ammo,
-                    curr_mag_size: WPN_STATS_DEAN_1911.curr_mag_size,
-                    curr_total_ammo: WPN_STATS_DEAN_1911.curr_total_ammo,
-                },
+                muzzle: (0.942, 0.685),
+                stats: WeaponStatsMapping::WPN_STATS_DEAN_1911.get(),
             },
             WeaponVariant::AKA_69 => Weapon {
                 variant,
                 texture: TEXTURE::WPN_AKA,
-                stats: WeaponStats {
-                    name: WPN_STATS_AKA_69.name,
-                    damage: WPN_STATS_AKA_69.damage,
-                    fire_rate: WPN_STATS_AKA_69.fire_rate,
-                    accuracy: WPN_STATS_AKA_69.accuracy.clone(),
-                    reload_time: WPN_STATS_AKA_69.reload_time,
-                    mag_size: WPN_STATS_AKA_69.mag_size,
-                    total_ammo: WPN_STATS_AKA_69.total_ammo,
-                    curr_mag_size: WPN_STATS_AKA_69.curr_mag_size,
-                    curr_total_ammo: WPN_STATS_AKA_69.curr_total_ammo,
-                },
+                muzzle: (0.988, 0.173),
+                stats: WeaponStatsMapping::WPN_STATS_AKA_69.get(),
             },
             WeaponVariant::SHOTPEW => Weapon {
                 variant,
                 texture: TEXTURE::WPN_SHOTPEW,
-                stats: WeaponStats {
-                    name: WPN_STATS_SHOTPEW.name,
-                    damage: WPN_STATS_SHOTPEW.damage,
-                    fire_rate: WPN_STATS_SHOTPEW.fire_rate,
-                    accuracy: WPN_STATS_SHOTPEW.accuracy.clone(),
-                    reload_time: WPN_STATS_SHOTPEW.reload_time,
-                    mag_size: WPN_STATS_SHOTPEW.mag_size,
-                    total_ammo: WPN_STATS_SHOTPEW.total_ammo,
-                    curr_mag_size: WPN_STATS_SHOTPEW.curr_mag_size,
-                    curr_total_ammo: WPN_STATS_SHOTPEW.curr_total_ammo,
-                },
+                muzzle: (0.988, 0.046),
+                stats: WeaponStatsMapping::WPN_STATS_SHOTPEW.get(),
             },
             WeaponVariant::PRRR => Weapon {
                 variant,
                 texture: TEXTURE::WPN_PRRR,
-                stats: WeaponStats {
-                    name: WPN_STATS_PRRR.name,
-                    damage: WPN_STATS_PRRR.damage,
-                    fire_rate: WPN_STATS_PRRR.fire_rate,
-                    accuracy: WPN_STATS_PRRR.accuracy.clone(),
-                    reload_time: WPN_STATS_PRRR.reload_time,
-                    mag_size: WPN_STATS_PRRR.mag_size,
-                    total_ammo: WPN_STATS_PRRR.total_ammo,
-                    curr_mag_size: WPN_STATS_PRRR.curr_mag_size,
-                    curr_total_ammo: WPN_STATS_PRRR.curr_total_ammo,
-                },
+                muzzle: (0.988, 0.372),
+                stats: WeaponStatsMapping::WPN_STATS_PRRR.get(),
             },
         }
     }

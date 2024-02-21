@@ -185,6 +185,29 @@ fn main() {
 
         for client_id in server.clients_id() {
             while let Some(message) =
+                server.receive_message(client_id, DefaultChannel::ReliableOrdered)
+            {
+                if let (Ok(packet), Some(player)) = (
+                    rmp_serde::from_slice::<GameNetworkPacket>(&message),
+                    state.players.get_mut(&client_id),
+                ) {
+                    match packet {
+                        GameNetworkPacket::NET_WORLD_MAP(_) => todo!(),
+                        GameNetworkPacket::NET_WORLD_PLAYERS(_) => todo!(),
+                        GameNetworkPacket::NET_PLAYER_JOINED(_) => todo!(),
+                        GameNetworkPacket::NET_PLAYER_GRID_POSITION(_, _) => todo!(),
+                        GameNetworkPacket::NET_PLAYER_WORLD_POSITION(_, _) => todo!(),
+                        GameNetworkPacket::NET_PLAYER_ORIENTATION_ANGLE(_, _) => todo!(),
+                        GameNetworkPacket::NET_PLAYER_LEFT(_) => todo!(),
+                        GameNetworkPacket::NET_PLAYER_WEAPON_REQUEST(_, _) => todo!(),
+                        GameNetworkPacket::NET_PLAYER_WEAPON_RESPONSE(_, _) => todo!(),
+                        GameNetworkPacket::NET_PROJECTILE_CREATE(_) => todo!(),
+                        GameNetworkPacket::NET_PROJECTILE_IMPACT(_) => todo!(),
+                    }
+                }
+            }
+
+            while let Some(message) =
                 server.receive_message(client_id, DefaultChannel::ReliableUnordered)
             {
                 if let (Ok(packet), Some(player)) = (

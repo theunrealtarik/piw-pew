@@ -1,16 +1,18 @@
+use std::ops::Add;
 use std::rc::Rc;
 
+use lib::packets::WeaponVariant;
 use lib::types::{RVector2, SharedAssets};
-use lib::{ENTITY_PLAYER_SIZE, WORLD_TILE_SIZE};
+use lib::{ENTITY_PLAYER_SIZE, ENTITY_WEAPON_SIZE, WORLD_TILE_SIZE};
 
-use nalgebra::{Point2, Vector2};
+use nalgebra::{Point2, Rotation2, Vector2};
 use raylib::prelude::*;
 
 use crate::configs::{window, *};
 use crate::core::*;
 use crate::game::Assets;
 
-use super::Invenotry;
+use super::{Invenotry, Weapon};
 
 #[allow(dead_code)]
 pub struct Player {
@@ -40,7 +42,7 @@ impl Player {
 
         Self {
             name,
-            inventory: Invenotry::new(),
+            inventory: Invenotry::new(Rc::clone(&assets)),
             orientation: 0.0,
             rectangle,
             grid: Point2::new(0, 0),
@@ -89,6 +91,40 @@ impl Player {
 
         new_position
     }
+
+    pub fn on_shoot<F>(&mut self, handle: &RaylibHandle, f: F)
+    where
+        F: FnOnce(&Weapon, Vector2<f32>, f32),
+    {
+        let assets = self.assets.borrow();
+
+        if handle.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+            if let Some(wpn) = self.inventory.selected_weapon() {
+                let buffer = assets.textures.get(&wpn.texture).unwrap();
+
+                let origin = self.origin + Vector2::new(self.rectangle.x, self.rectangle.y);
+                let theta = self.orientation.to_degrees();
+
+                let flip_y = if theta.abs() <= 180.0 && theta.abs() > 90.0 {
+                    true
+                } else {
+                    false
+                };
+
+                let (wpn_w, wpn_h) = (
+                    buffer.width as f32 * ENTITY_WEAPON_SIZE,
+                    buffer.height as f32 * ENTITY_WEAPON_SIZE,
+                );
+
+                let muzzle = Vector2::new(
+                    origin.x + self.rectangle.width / 2.0 + wpn_w * wpn.muzzle.0,
+                    origin.y + if flip_y { 1.0 } else { -1.0 } * (wpn_h / 2.0) * wpn.muzzle.1,
+                );
+                let coords = Rotation2::new(self.orientation) * (muzzle - origin) + origin;
+                f(wpn, coords, self.orientation);
+            }
+        }
+    }
 }
 
 impl UpdateHandle for Player {
@@ -131,13 +167,8 @@ impl RenderHandle for Player {
         let radius = self.rectangle.width / 2.0;
         let player_origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
 
-        self.inventory.render_weapon(
-            d,
-            Rc::clone(&self.assets),
-            player_origin,
-            radius,
-            self.orientation,
-        );
+        self.inventory
+            .render_weapon(d, player_origin, radius, self.orientation);
 
         #[cfg(debug_assertions)]
         {

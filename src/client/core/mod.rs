@@ -6,9 +6,7 @@ pub trait UpdateHandle {
 }
 
 pub trait RenderHandle {
-    fn render(&mut self, handle: &mut RaylibMode2D<RaylibDrawHandle>)
-    where
-        Self: AssetsHandle;
+    fn render(&mut self, handle: &mut RaylibMode2D<RaylibDrawHandle>);
 }
 
 pub trait NetUpdateHandle {
