@@ -1,5 +1,5 @@
 use crate::configs::window;
-use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
+use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UpdateHandle, UserInterfaceHandle};
 use crate::entities::{Enemy, GameWorldTile, Player, Weapon};
 
 use lib::types::SharedAssets;
@@ -9,7 +9,6 @@ use lib::{
     packets::GameNetworkPacket,
     types::{RVector2, Tile},
 };
-use nalgebra::Point2;
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
@@ -207,12 +206,6 @@ impl NetUpdateHandle for Game {
                 local_player.rectangle.height,
             );
 
-            // for tile in self.world.tiles.values() {
-            //     if tile.variant != Tile::GROUND && rectangle.check_collision_recs(&tile.dest_rect) {
-            //         return;
-            //     }
-            // }
-
             for tile in self
                 .world
                 .offset_tiles((local_player.grid.x, local_player.grid.y))
@@ -225,11 +218,6 @@ impl NetUpdateHandle for Game {
                     }
                 }
             }
-
-            for p in self
-                .world
-                .offset_tiles((local_player.grid.x, local_player.grid.y))
-            {}
 
             let mut position_buffer = Vec::new();
             let position = local_player.move_to(position);
@@ -280,23 +268,8 @@ impl RenderHandle for Game {
                         tile.dest_rect.y as i32,
                         tile.dest_rect.width as i32,
                         tile.dest_rect.height as i32,
-                        Color::BLUE,
+                        Color::new(0, 0, 255, 50),
                     );
-
-                    for tile in self
-                        .world
-                        .offset_tiles((self.player.grid.x, self.player.grid.y))
-                    {
-                        if let Some(tile) = tile {
-                            d.draw_rectangle_lines(
-                                tile.dest_rect.x as i32,
-                                tile.dest_rect.y as i32,
-                                tile.dest_rect.width as i32,
-                                tile.dest_rect.height as i32,
-                                Color::RED,
-                            )
-                        }
-                    }
                 }
             }
 
@@ -491,7 +464,6 @@ impl GameAssets {
     }
 }
 
-// game menu
 pub struct GameMenu {
     assets: SharedAssets<Assets>,
     rotation: f32,
@@ -619,7 +591,6 @@ impl GameSettings {
     }
 }
 
-// game world
 pub struct GameWorld {
     tiles: HashMap<(i32, i32), GameWorldTile>,
     enemies: HashMap<ClientId, Enemy>,
@@ -641,5 +612,23 @@ impl GameWorld {
             .into_iter()
             .map(|(gx, gy)| self.tiles.get(&(gx, gy)))
             .collect::<Vec<_>>()
+    }
+}
+
+impl UserInterfaceHandle for Game {
+    fn display(&mut self, d: &mut RaylibDrawHandle) {
+        let local_player = &self.player;
+
+        if let Some(selected) = local_player.inventory.selected_weapon {
+            if let Some(weapon) = local_player.inventory.weapons.get(&selected) {
+                let ammo = format!(
+                    "{}/{}",
+                    weapon.stats.curr_mag_size,
+                    weapon.stats.curr_total_ammo - weapon.stats.curr_total_ammo
+                );
+
+                d.draw_text(&ammo, 10, 10, 24, Color::WHITE);
+            }
+        }
     }
 }

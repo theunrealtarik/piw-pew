@@ -16,13 +16,13 @@ pub enum WeaponAccuracy {
 
 #[derive(Debug)]
 pub struct WeaponStats {
-    pub name: &'static str,
-    pub damage: u8,
+    name: &'static str,
+    damage: u8,
     pub fire_rate: u8,
     pub accuracy: WeaponAccuracy,
     pub reload_time: Duration,
-    pub mag_size: u8,
-    pub total_ammo: u8,
+    mag_size: u8,
+    total_ammo: u8,
     pub curr_mag_size: u8,
     pub curr_total_ammo: u8,
 }
@@ -48,6 +48,10 @@ impl WeaponStats {
             curr_mag_size: mag_size,
             curr_total_ammo: mag_size * mags,
         }
+    }
+
+    fn damage(&self) -> &u8 {
+        &self.damage
     }
 }
 

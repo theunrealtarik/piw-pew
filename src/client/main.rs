@@ -3,7 +3,7 @@ mod core;
 mod entities;
 mod game;
 
-use core::{NetRenderHandle, NetUpdateHandle, RenderHandle};
+use core::{NetUpdateHandle, RenderHandle, UserInterfaceHandle};
 use lib::{
     logging::Logger,
     net::{DELTA_TIME, PROTOCOL_ID},
@@ -90,9 +90,9 @@ fn main() {
             menu.render(&mut draw_2d);
         } else if network.client.is_connected() {
             game.render(&mut draw_2d);
+            std::mem::drop(draw_2d);
+            game.display(&mut draw);
         }
-
-        std::mem::drop(draw_2d);
 
         match network.transport.send_packets(&mut network.client) {
             Ok(_) => {}

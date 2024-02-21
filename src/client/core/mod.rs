@@ -24,6 +24,10 @@ pub trait NetRenderHandle {
         Self: AssetsHandle;
 }
 
+pub trait UserInterfaceHandle {
+    fn display(&mut self, handle: &mut RaylibDrawHandle);
+}
+
 pub trait AssetsHandle {
     type GameAssets;
     fn get_assets(&self) -> Self::GameAssets;
