@@ -1,13 +1,15 @@
 use crate::configs::window;
-use crate::core::{AssetsHandle, NetRenderHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
+use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UpdateHandle};
 use crate::entities::{Enemy, GameWorldTile, Player, Weapon};
 
 use lib::types::SharedAssets;
+use lib::utils::POINT_OFFSETS;
 use lib::WORLD_TILE_SIZE;
 use lib::{
     packets::GameNetworkPacket,
     types::{RVector2, Tile},
 };
+use nalgebra::Point2;
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
@@ -84,8 +86,8 @@ impl NetUpdateHandle for Game {
                                     GameWorldTile::new(
                                         tile,
                                         tile_texture,
-                                        x as f32,
-                                        y as f32,
+                                        x as u8,
+                                        y as u8,
                                         w,
                                         h,
                                         WORLD_TILE_SIZE,
@@ -205,11 +207,29 @@ impl NetUpdateHandle for Game {
                 local_player.rectangle.height,
             );
 
-            for tile in self.world.tiles.values() {
-                if tile.variant != Tile::GROUND && rectangle.check_collision_recs(&tile.dest_rect) {
-                    return;
+            // for tile in self.world.tiles.values() {
+            //     if tile.variant != Tile::GROUND && rectangle.check_collision_recs(&tile.dest_rect) {
+            //         return;
+            //     }
+            // }
+
+            for tile in self
+                .world
+                .offset_tiles((local_player.grid.x, local_player.grid.y))
+            {
+                if let Some(tile) = tile {
+                    if tile.variant != Tile::GROUND
+                        && rectangle.check_collision_recs(&tile.dest_rect)
+                    {
+                        return;
+                    }
                 }
             }
+
+            for p in self
+                .world
+                .offset_tiles((local_player.grid.x, local_player.grid.y))
+            {}
 
             let mut position_buffer = Vec::new();
             let position = local_player.move_to(position);
@@ -225,8 +245,8 @@ impl NetUpdateHandle for Game {
     }
 }
 
-impl NetRenderHandle for Game {
-    fn net_render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>, network: &mut GameNetwork) {
+impl RenderHandle for Game {
+    fn render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
         let assets = self.assets.borrow();
 
         if !self.player.ready {
@@ -245,6 +265,39 @@ impl NetRenderHandle for Game {
                     0.0,
                     Color::WHITE,
                 );
+
+                #[cfg(debug_assertions)]
+                {
+                    d.draw_text(
+                        &format!("{:?} {:?}", tile.grid.x, tile.grid.y),
+                        tile.dest_rect.x as i32,
+                        tile.dest_rect.y as i32,
+                        12,
+                        Color::WHITE,
+                    );
+                    d.draw_rectangle_lines(
+                        tile.dest_rect.x as i32,
+                        tile.dest_rect.y as i32,
+                        tile.dest_rect.width as i32,
+                        tile.dest_rect.height as i32,
+                        Color::BLUE,
+                    );
+
+                    for tile in self
+                        .world
+                        .offset_tiles((self.player.grid.x, self.player.grid.y))
+                    {
+                        if let Some(tile) = tile {
+                            d.draw_rectangle_lines(
+                                tile.dest_rect.x as i32,
+                                tile.dest_rect.y as i32,
+                                tile.dest_rect.width as i32,
+                                tile.dest_rect.height as i32,
+                                Color::RED,
+                            )
+                        }
+                    }
+                }
             }
 
             let (w, h) = (
@@ -568,7 +621,7 @@ impl GameSettings {
 
 // game world
 pub struct GameWorld {
-    tiles: HashMap<(usize, usize), GameWorldTile>,
+    tiles: HashMap<(i32, i32), GameWorldTile>,
     enemies: HashMap<ClientId, Enemy>,
 }
 
@@ -578,5 +631,15 @@ impl GameWorld {
             tiles: HashMap::new(),
             enemies: HashMap::new(),
         }
+    }
+
+    fn offset_tiles(&self, (x, y): (i32, i32)) -> Vec<Option<&GameWorldTile>> {
+        POINT_OFFSETS
+            .into_iter()
+            .map(|(dx, dy)| (x + dx as i32, y + dy as i32))
+            .collect::<Vec<(i32, i32)>>()
+            .into_iter()
+            .map(|(gx, gy)| self.tiles.get(&(gx, gy)))
+            .collect::<Vec<_>>()
     }
 }

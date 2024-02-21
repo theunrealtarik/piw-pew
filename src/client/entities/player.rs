@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
 use lib::types::{RVector2, SharedAssets};
-use lib::ENTITY_PLAYER_SIZE;
+use lib::{ENTITY_PLAYER_SIZE, WORLD_TILE_SIZE};
 
-use nalgebra::{ComplexField, Vector2};
+use nalgebra::{Point2, Vector2};
 use raylib::prelude::*;
 
 use crate::configs::{window, *};
 use crate::core::*;
-use crate::game::{Assets, FONT};
+use crate::game::Assets;
 
 use super::Invenotry;
 
@@ -18,6 +18,7 @@ pub struct Player {
     pub inventory: Invenotry,
     pub orientation: f32,
     pub rectangle: Rectangle,
+    pub grid: Point2<i32>,
     pub origin: Vector2<f32>,
     pub camera: Camera2D,
     pub velocity: Vector2<f32>,
@@ -42,6 +43,7 @@ impl Player {
             inventory: Invenotry::new(),
             orientation: 0.0,
             rectangle,
+            grid: Point2::new(0, 0),
             origin,
             camera: Camera2D {
                 rotation: 0.0,
@@ -64,6 +66,11 @@ impl Player {
     }
 
     pub fn move_to(&mut self, position: Vector2<f32>) -> Vector2<f32> {
+        self.grid = Point2::new(
+            (position.x / WORLD_TILE_SIZE).round() as i32,
+            (position.y / WORLD_TILE_SIZE).round() as i32,
+        );
+
         self.rectangle.x = position.x;
         self.rectangle.y = position.y;
 
@@ -121,41 +128,19 @@ impl RenderHandle for Player {
     fn render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
         d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, player::PLAYER_COLOR);
 
-        let (ocos, osin) = (self.orientation.cos(), self.orientation.sin());
-
         let radius = self.rectangle.width / 2.0;
-        let origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
-        let coords = Vector2::new(radius * ocos, radius * osin) + origin;
-        let theta = self.orientation.to_degrees();
-
-        let (flip_x, flip_y) = (
-            if theta.abs() >= 0.0 && theta.abs() <= 90.0 {
-                false
-            } else {
-                true
-            },
-            if theta.abs() <= 180.0 && theta.abs() > 90.0 {
-                true
-            } else {
-                false
-            },
-        );
+        let player_origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
 
         self.inventory.render_weapon(
             d,
             Rc::clone(&self.assets),
-            (coords.x, coords.y),
-            (flip_x, flip_y),
-            theta,
+            player_origin,
+            radius,
+            self.orientation,
         );
 
-        // debug stuff
         #[cfg(debug_assertions)]
         {
-            let assets = self.assets.borrow();
-            let font = assets.fonts.get(&FONT::FNT_JET).unwrap();
-            let debug = Vector2::new(self.rectangle.x, self.rectangle.y)
-                .add_scalar(-2.0 * ENTITY_PLAYER_SIZE);
             let mouse_pos = d.get_screen_to_world2D(d.get_mouse_position(), self.camera);
 
             let lx = Vector2::new(
@@ -180,29 +165,27 @@ impl RenderHandle for Player {
             );
 
             d.draw_line(
-                origin.x as i32,
-                origin.y as i32,
+                player_origin.x as i32,
+                player_origin.y as i32,
                 mouse_pos.x as i32,
                 mouse_pos.y as i32,
                 Color::GREEN,
             );
 
-            d.draw_circle_lines(origin.x as i32, origin.y as i32, radius, Color::RED);
-            d.draw_text_ex(
-                font,
-                &format!(
-                    "theta {theta:.2}\n|theta| {}\nSIN(theta) {osin}\nCOS(theta) {ocos}\n\nFLIP ({flip_x} {flip_y})\n", theta.abs()
-                ),
-                RVector2 {
-                    x: debug.x,
-                    y: debug.y,
-                },
-                20.0,
-                1.0,
+            d.draw_circle_lines(
+                player_origin.x as i32,
+                player_origin.y as i32,
+                radius,
                 Color::RED,
             );
 
-            d.draw_circle(coords.x as i32, coords.y as i32, 4.0, Color::RED);
+            d.draw_text(
+                &format!("{:#?} {:#?}", self.grid.x, self.grid.y),
+                player_origin.x as i32,
+                player_origin.y as i32,
+                12,
+                Color::BLACK,
+            );
         }
     }
 }

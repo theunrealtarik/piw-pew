@@ -8,6 +8,7 @@ use lib::{
     types::{Color, RVector2, SharedAssets},
     ENTITY_WEAPON_SIZE,
 };
+use nalgebra::Vector2;
 use raylib::prelude::*;
 use std::collections::HashMap;
 
@@ -35,17 +36,38 @@ impl Invenotry {
     }
 
     pub fn render_weapon(
-        &self,
+        &mut self,
         d: &mut RaylibMode2D<RaylibDrawHandle>,
         assets: SharedAssets<Assets>,
-        coords: (f32, f32),
-        (flip_x, flip_y): (bool, bool),
-        theta: f32,
+        origin: Vector2<f32>,
+        radius: f32,
+        orientation: f32,
     ) {
         if let Some(s_wpn) = &self.selected_weapon {
             if let Some(wpn) = self.weapons.get(&s_wpn) {
                 let assets = assets.borrow();
                 let buffer = assets.textures.get(&wpn.texture).unwrap();
+
+                let (ocos, osin) = (orientation.cos(), orientation.sin());
+                let (wpn_w, wpn_h) = (
+                    buffer.width as f32 * ENTITY_WEAPON_SIZE,
+                    buffer.height as f32 * ENTITY_WEAPON_SIZE,
+                );
+
+                let calculate_point_coords = |radius: f32, origin: Vector2<f32>| -> (f32, f32) {
+                    let coords = Vector2::new(radius * ocos, radius * osin) + origin;
+                    (coords.x, coords.y)
+                };
+
+                let wpn_coords = calculate_point_coords(radius, origin);
+                let muzzle_coords = calculate_point_coords(radius + wpn_w, origin);
+                let theta = orientation.to_degrees();
+
+                let flip_y = if theta.abs() <= 180.0 && theta.abs() > 90.0 {
+                    true
+                } else {
+                    false
+                };
 
                 let src_rect = Rectangle::new(
                     0.0,
@@ -54,13 +76,11 @@ impl Invenotry {
                     buffer.height as f32 * if flip_y { -1.0 } else { 1.0 },
                 );
 
-                let (wpn_w, wpn_h) = (
-                    buffer.width as f32 * ENTITY_WEAPON_SIZE,
-                    buffer.height as f32 * ENTITY_WEAPON_SIZE,
-                );
+                let mzz_x = muzzle_coords.0;
+                let mzz_y = muzzle_coords.1;
 
-                let wpn_x = coords.0;
-                let wpn_y = coords.1;
+                let wpn_x = wpn_coords.0;
+                let wpn_y = wpn_coords.1;
 
                 let dest_rect = Rectangle::new(wpn_x, wpn_y, wpn_w, wpn_h);
 
@@ -76,13 +96,11 @@ impl Invenotry {
                 #[cfg(debug_assertions)]
                 {
                     if d.is_key_down(KeyboardKey::KEY_LEFT_ALT) {
-                        d.draw_rectangle_pro(
-                            Rectangle::new(wpn_x, wpn_y, wpn_w, wpn_h),
-                            RVector2::zero(),
-                            theta,
-                            Color::YELLOW,
-                        );
+                        d.draw_rectangle_pro(dest_rect, RVector2::zero(), theta, Color::YELLOW);
                     }
+
+                    d.draw_circle(wpn_x as i32, wpn_y as i32, 5.0, Color::YELLOW);
+                    d.draw_circle(mzz_x as i32, mzz_y as i32, 5.0, Color::YELLOW);
                 }
             }
         };

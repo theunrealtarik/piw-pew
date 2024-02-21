@@ -2,7 +2,7 @@
 
 pub static WORLD_TILE_SIZE: f32 = 100.0;
 pub static ENTITY_PLAYER_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
-pub static ENTITY_WEAPON_SIZE: f32 = ENTITY_PLAYER_SIZE * 0.003;
+pub static ENTITY_WEAPON_SIZE: f32 = ENTITY_PLAYER_SIZE * 0.0018;
 
 pub mod net {
     use std::time::Duration;
@@ -56,10 +56,10 @@ pub mod packets {
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
     pub enum GameNetworkPacket {
-        NET_WORLD_MAP(HashMap<(usize, usize), super::types::Tile>),
+        NET_WORLD_MAP(HashMap<(i32, i32), super::types::Tile>),
         NET_WORLD_PLAYERS(HashMap<u64, PlayerData>),
         NET_PLAYER_JOINED(PlayerData),
-        NET_PLAYER_GRID_POSITION(RawClientId, (usize, usize)),
+        NET_PLAYER_GRID_POSITION(RawClientId, (i32, i32)),
         NET_PLAYER_WORLD_POSITION(RawClientId, (f32, f32)),
         NET_PLAYER_ORIENTATION_ANGLE(u64, usize),
         NET_PLAYER_LEFT(RawClientId),
@@ -96,7 +96,7 @@ pub mod types {
         GROUND,
     }
 
-    pub type Tiles = std::collections::HashMap<(usize, usize), Tile>;
+    pub type Tiles = std::collections::HashMap<(i32, i32), Tile>;
 }
 
 pub mod utils {
@@ -106,4 +106,15 @@ pub mod utils {
         let y = height / half;
         (x, y)
     }
+
+    pub static POINT_OFFSETS: [(i8, i8); 8] = [
+        (0, 1),
+        (1, 1),
+        (1, 0),
+        (1, -1),
+        (0, -1),
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+    ];
 }

@@ -258,7 +258,7 @@ impl Map {
                                     'T' => Tile::WALL_TOP,
                                     _ => Tile::GROUND,
                                 };
-                                map.insert((x, y), tile);
+                                map.insert((x as i32, y as i32), tile);
                             }
                         }
 
@@ -294,12 +294,10 @@ impl Map {
         map
     }
 
-    fn get_random_spawn_position(&self) -> (usize, usize) {
+    fn get_random_spawn_position(&self) -> (i32, i32) {
         let mut rng = thread_rng();
         let ground_tiles = self.get_ground();
-        let ground_tiles = ground_tiles
-            .iter()
-            .collect::<Vec<(&(usize, usize), &Tile)>>();
+        let ground_tiles = ground_tiles.iter().collect::<Vec<(&(i32, i32), &Tile)>>();
         let tile_pair = ground_tiles.choose(&mut rng).unwrap();
 
         *tile_pair.0

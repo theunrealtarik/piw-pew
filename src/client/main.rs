@@ -89,14 +89,10 @@ fn main() {
         if network.client.is_connecting() {
             menu.render(&mut draw_2d);
         } else if network.client.is_connected() {
-            game.net_render(&mut draw_2d, &mut network);
+            game.render(&mut draw_2d);
         }
 
         std::mem::drop(draw_2d);
-        draw.draw_fps(
-            configs::window::WINDOW_TOP_LEFT_X,
-            configs::window::WINDOW_TOP_LEFT_Y,
-        );
 
         match network.transport.send_packets(&mut network.client) {
             Ok(_) => {}
