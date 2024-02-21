@@ -302,9 +302,7 @@ impl RenderHandle for Game {
             enemy.render(d);
         }
 
-        for projectile in &mut self.world.projectiles {
-            projectile.render(d);
-        }
+        self.world.render_projectiles(d);
     }
 }
 
@@ -637,7 +635,24 @@ impl GameWorld {
             .collect::<Vec<_>>()
     }
 
-    fn render_projectiles(&mut self) {}
+    fn render_projectiles(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
+        let index = 0;
+        while index < self.projectiles.len() {
+            let p = &self.projectiles[index];
+
+            if self.in_of_bounds(
+                p.position.x,
+                p.position.y,
+                p.rectangle.width,
+                p.rectangle.height,
+            ) {
+                let p = &mut self.projectiles[index];
+                p.render(d);
+            } else {
+                self.projectiles.swap_remove(index);
+            }
+        }
+    }
 
     fn bounds(&self) -> (f32, f32) {
         let length = (self.tiles.len() as f32).sqrt() * WORLD_TILE_SIZE;
@@ -646,7 +661,6 @@ impl GameWorld {
 
     fn in_of_bounds(&self, x: f32, y: f32, width: f32, height: f32) -> bool {
         let bounds = self.bounds();
-
         x > 0.0 && x <= bounds.0 - width && y > 0.0 && y < bounds.1 - height
     }
 }
