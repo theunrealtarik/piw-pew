@@ -1,9 +1,9 @@
 use crate::configs;
-use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UserInterfaceHandle, Window};
-use crate::entities::{Enemy, GameWorldTile, Player, Projectile, Weapon};
+use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UserInterfaceHandle};
+use crate::entities::{Enemy, GameWorldTile, Invenotry, Player, Projectile, Weapon};
 
 use lib::packets::ProjectileData;
-use lib::types::{Health, RawProjectileId, SharedAssets};
+use lib::types::{Health, RawProjectileId, SharedAssets, WeaponVariant};
 use lib::utils::POINT_OFFSETS;
 use lib::{
     packets::GameNetworkPacket,
@@ -119,12 +119,12 @@ impl NetUpdateHandle for Game {
                                     data.position.0,
                                     data.position.1,
                                     data.orientation,
-                                    data.hp,
+                                    data.health,
                                     Rc::clone(&self.assets),
                                 );
 
                                 enemy.inventory.select(data.weapon);
-                                enemy.inventory.add(data.weapon, Weapon::new(data.weapon));
+                                enemy.inventory.add(Weapon::new(data.weapon));
 
                                 (client_id, enemy)
                             })
@@ -137,16 +137,13 @@ impl NetUpdateHandle for Game {
                         let pos_y = data.position.1;
 
                         if network.uuid == data._id {
-                            local_player.name = data.name;
                             local_player.orientation = data.orientation;
                             local_player.rectangle.x = pos_x;
                             local_player.rectangle.y = pos_y;
                             local_player.ready = true;
 
                             local_player.inventory.select(data.weapon);
-                            local_player
-                                .inventory
-                                .add(data.weapon, Weapon::new(data.weapon));
+                            local_player.inventory.add(Weapon::new(data.weapon));
                         } else {
                             let id = ClientId::from_raw(data._id);
                             let mut enemy = Enemy::new(
@@ -154,12 +151,12 @@ impl NetUpdateHandle for Game {
                                 pos_x,
                                 pos_y,
                                 data.orientation,
-                                data.hp,
+                                data.health,
                                 Rc::clone(&self.assets),
                             );
 
                             enemy.inventory.select(data.weapon);
-                            enemy.inventory.add(data.weapon, Weapon::new(data.weapon));
+                            enemy.inventory.add(Weapon::new(data.weapon));
                             self.world.enemies.insert(id, enemy);
                         }
                     }
@@ -218,6 +215,19 @@ impl NetUpdateHandle for Game {
                             .enemies
                             .remove(&ClientId::from_raw(id))
                             .expect("failed to remove player data");
+                    }
+                    GameNetworkPacket::NET_PLAYER_RESPAWN(d_id, data) => {
+                        if d_id == network.transport.client_id() {
+                            local_player.rectangle.x = data.position.0;
+                            local_player.rectangle.y = data.position.1;
+                            local_player.health = data.health;
+                            local_player.ready = true;
+                            local_player.inventory.cash = data.cash;
+                            local_player.inventory.reset_weapons();
+                        }
+                    }
+                    GameNetworkPacket::NET_PLAYER_KILL_REWARD(data) => {
+                        local_player.inventory.cash = data.cash;
                     }
                     _ => {}
                 }
@@ -339,14 +349,14 @@ impl RenderHandle for Game {
                         tile.dest_rect.x as i32,
                         tile.dest_rect.y as i32,
                         12,
-                        Color::WHITE,
+                        Color::new(255, 255, 255, 50),
                     );
                     d.draw_rectangle_lines(
                         tile.dest_rect.x as i32,
                         tile.dest_rect.y as i32,
                         tile.dest_rect.width as i32,
                         tile.dest_rect.height as i32,
-                        Color::new(0, 0, 255, 50),
+                        Color::new(255, 255, 255, 50),
                     );
                 }
             }
@@ -442,7 +452,7 @@ asset!(
     "ttf",
     FONT {
         FNT_POPPINS,
-        FNT_JET
+        FNT_POPPINS_BLACK
     }
 );
 asset!(
@@ -460,6 +470,11 @@ asset!(
         TILE_GROUND,
         UI_LOADING,
         UI_LOGO,
+        UI_AKA_69,
+        UI_DEAN_1911,
+        UI_PRRR,
+        UI_SHOTPEW,
+        UI_LOCK,
     }
 );
 
@@ -571,14 +586,18 @@ impl RenderHandle for GameMenu {
                 let logo_texture: &Texture2D = logo_buf;
                 let loading_texture: &Texture2D = loading_buf;
 
-                let (center_x, center_y) = Window::center();
                 let (logo_width, logo_height) =
                     (logo_texture.width as f32, logo_texture.height as f32);
 
                 d.draw_texture_pro(
                     logo_texture,
                     Rectangle::new(0.0, 0.0, logo_width, logo_height),
-                    Rectangle::new(center_x, center_y, logo_width / 4.0, logo_height / 4.0),
+                    Rectangle::new(
+                        configs::window::WINDOW_CENTER_X,
+                        configs::window::WINDOW_CENTER_Y,
+                        logo_width / 4.0,
+                        logo_height / 4.0,
+                    ),
                     RVector2::new(logo_width / 8.0, logo_height / 4.0),
                     0.0,
                     Color::WHITE,
@@ -592,7 +611,12 @@ impl RenderHandle for GameMenu {
                         loading_texture.width as f32,
                         loading_texture.height as f32,
                     ),
-                    Rectangle::new(center_x, center_y + 75.0, 100.0, 100.0),
+                    Rectangle::new(
+                        configs::window::WINDOW_CENTER_X,
+                        configs::window::WINDOW_CENTER_Y + 75.0,
+                        100.0,
+                        100.0,
+                    ),
                     RVector2::new(50.0, 50.0),
                     self.rotation,
                     Color::WHITE,
@@ -717,35 +741,45 @@ impl GameWorld {
 
 impl UserInterfaceHandle for Game {
     fn display(&mut self, d: &mut RaylibDrawHandle) {
-        let assets = self.assets.borrow();
-        let font = assets.fonts.get(&FONT::FNT_POPPINS).unwrap();
         let local_player = &self.player;
+        let is_alive = local_player.health > 0;
 
-        if let Some(wpn) = local_player.inventory.selected_weapon() {
-            #[cfg(debug_assertions)]
-            {
-                let data = format!("{:#?}", wpn.stats);
-                d.draw_text_ex(
-                    &font,
-                    &data,
-                    RVector2::new(
-                        configs::window::WINDOW_PADDING as f32,
-                        configs::window::WINDOW_PADDING as f32 * 3.0,
-                    ),
-                    24.0,
-                    1.0,
-                    Color::RED,
-                );
-            }
-            let ammo = format!(
-                "{}/{}",
-                wpn.stats.curr_mag_size,
-                wpn.stats.curr_total_ammo - wpn.stats.curr_mag_size
+        let assets = self.assets.borrow();
+        let poppins = assets.fonts.get(&FONT::FNT_POPPINS).unwrap();
+        let poppins_black = assets.fonts.get(&FONT::FNT_POPPINS_BLACK).unwrap();
+        let roundness = 0.2;
+
+        if is_alive {
+            // health bar
+            d.draw_rectangle_rounded(
+                Rectangle::new(
+                    configs::window::WINDOW_PADDING as f32,
+                    configs::window::WINDOW_PADDING as f32,
+                    200.0,
+                    20.0,
+                ),
+                roundness,
+                0,
+                Color::new(0, 0, 0, 100),
             );
 
+            d.draw_rectangle_rounded(
+                Rectangle::new(
+                    configs::window::WINDOW_PADDING as f32,
+                    configs::window::WINDOW_PADDING as f32,
+                    (local_player.health as f32) / (ENTITY_PLAYER_MAX_HEALTH as f32) * 200.0,
+                    20.0,
+                ),
+                roundness,
+                1,
+                Color::new(42, 192, 138, 255),
+            );
+
+            // cash
+            let cash = format!("${}", local_player.inventory.cash);
             d.draw_text_ex(
-                &font,
-                &ammo,
+                &poppins_black,
+                &cash,
                 RVector2::new(
                     configs::window::WINDOW_PADDING as f32,
                     configs::window::WINDOW_PADDING as f32 * 2.0,
@@ -754,33 +788,121 @@ impl UserInterfaceHandle for Game {
                 1.0,
                 Color::WHITE,
             );
-        }
 
-        let is_alive = local_player.health > 0;
-        if is_alive {
-            d.draw_rectangle_rounded(
-                Rectangle::new(
-                    configs::window::WINDOW_PADDING as f32,
-                    configs::window::WINDOW_PADDING as f32,
-                    100.0,
-                    20.0,
-                ),
-                2.0,
-                0,
-                Color::new(0, 0, 0, 50),
-            );
+            // wapon
+            if let Some(wpn) = local_player.inventory.selected_weapon() {
+                #[cfg(debug_assertions)]
+                {
+                    let data = format!("{:#?}", wpn.stats);
+                    d.draw_text_ex(
+                        &poppins,
+                        &data,
+                        RVector2::new(
+                            configs::window::WINDOW_PADDING as f32,
+                            configs::window::WINDOW_PADDING as f32 * 3.0,
+                        ),
+                        24.0,
+                        1.0,
+                        Color::RED,
+                    );
 
-            d.draw_rectangle_rounded(
-                Rectangle::new(
-                    configs::window::WINDOW_PADDING as f32,
-                    configs::window::WINDOW_PADDING as f32,
-                    (local_player.health as f32) / (ENTITY_PLAYER_MAX_HEALTH as f32) * 100.0,
-                    20.0,
-                ),
-                0.2,
-                1,
-                Color::new(42, 192, 138, 255),
-            );
+                    d.draw_line(
+                        0,
+                        configs::window::WINDOW_CENTER_Y as i32,
+                        configs::window::WINDOW_WIDTH,
+                        configs::window::WINDOW_CENTER_Y as i32,
+                        Color::BLUE,
+                    );
+
+                    d.draw_line(
+                        configs::window::WINDOW_CENTER_X as i32,
+                        0,
+                        configs::window::WINDOW_CENTER_X as i32,
+                        configs::window::WINDOW_HEIGHT,
+                        Color::BLUE,
+                    );
+                }
+
+                let ammo = format!(
+                    "{}/{}",
+                    wpn.stats.curr_mag_size,
+                    wpn.stats.curr_total_ammo - wpn.stats.curr_mag_size
+                );
+
+                d.draw_text_ex(
+                    &poppins,
+                    &ammo,
+                    RVector2::new(
+                        configs::window::WINDOW_PADDING as f32,
+                        configs::window::WINDOW_PADDING as f32 * 3.0,
+                    ),
+                    24.0,
+                    1.0,
+                    Color::WHITE,
+                );
+            }
+
+            // waspons ui
+            let lock_icon = assets.textures.get(&TEXTURE::UI_LOCK).unwrap();
+            for (index, wpn_variant) in WeaponVariant::VARIANTS.iter().enumerate() {
+                let weapon_icon_length = 50.0;
+                let texture = match wpn_variant {
+                    WeaponVariant::DEAN_1911 => assets.textures.get(&TEXTURE::UI_DEAN_1911),
+                    WeaponVariant::AKA_69 => assets.textures.get(&TEXTURE::UI_AKA_69),
+                    WeaponVariant::SHOTPEW => assets.textures.get(&TEXTURE::UI_SHOTPEW),
+                    WeaponVariant::PRRR => assets.textures.get(&TEXTURE::UI_PRRR),
+                };
+
+                let wpn = Weapon::new(*wpn_variant);
+
+                if let Some(buffer) = texture {
+                    let dest_rect = Rectangle::new(
+                        configs::window::WINDOW_BOTTOM_LEFT_X as f32
+                            + configs::window::WINDOW_PADDING as f32
+                            + (index * 60) as f32,
+                        configs::window::WINDOW_BOTTOM_LEFT_Y as f32
+                            - configs::window::WINDOW_PADDING as f32
+                            - weapon_icon_length,
+                        weapon_icon_length,
+                        weapon_icon_length,
+                    );
+
+                    d.draw_texture_pro(
+                        buffer,
+                        Rectangle::new(0.0, 0.0, buffer.width as f32, buffer.height as f32),
+                        dest_rect,
+                        RVector2::zero(),
+                        0.0,
+                        if let Some(wpn) = local_player.inventory.get(wpn_variant) {
+                            if wpn.variant == *wpn_variant {
+                                Color::WHITE
+                            } else {
+                                Color::GRAY
+                            }
+                        } else {
+                            Color::GRAY
+                        },
+                    );
+
+                    if local_player.inventory.cash < *wpn.stats.price() as i64
+                        && !local_player.inventory.has(wpn_variant)
+                    {
+                        d.draw_texture_pro(
+                            lock_icon,
+                            Rectangle::new(
+                                0.0,
+                                0.0,
+                                lock_icon.width as f32,
+                                lock_icon.height as f32,
+                            ),
+                            dest_rect,
+                            RVector2::zero(),
+                            0.0,
+                            Color::WHITE,
+                        )
+                    }
+                };
+            }
         }
     }
 }

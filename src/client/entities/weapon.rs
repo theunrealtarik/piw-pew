@@ -15,6 +15,7 @@ pub enum WeaponAccuracy {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct WeaponStats {
     name: &'static str,
     damage: u8,
@@ -25,6 +26,7 @@ pub struct WeaponStats {
     total_ammo: u8,
     pub curr_mag_size: u8,
     pub curr_total_ammo: u8,
+    price: u32,
 }
 
 impl WeaponStats {
@@ -36,6 +38,7 @@ impl WeaponStats {
         reload_time: Duration,
         mag_size: u8,
         mags: u8,
+        price: u32,
     ) -> Self {
         Self {
             name,
@@ -47,6 +50,7 @@ impl WeaponStats {
             total_ammo: mag_size * mags,
             curr_mag_size: mag_size,
             curr_total_ammo: mag_size * mags,
+            price,
         }
     }
 
@@ -56,6 +60,10 @@ impl WeaponStats {
 
     pub fn damage(&self) -> &u8 {
         &self.damage
+    }
+
+    pub fn price(&self) -> &u32 {
+        &self.price
     }
 }
 
@@ -68,25 +76,28 @@ lazy_static! {
         Duration::from_millis(100),
         Duration::from_millis(1500),
         30,
-        4
+        4,
+        2700
     );
     static ref WPN_STATS_SHOTPEW: WeaponStats = WeaponStats::new(
         "PUMP Shotpew",
         25,
         WeaponAccuracy::Low,
-        Duration::from_millis(1000),
+        Duration::from_millis(300),
         Duration::from_millis(2000),
         5,
-        5
+        5,
+        2100
     );
     static ref WPN_STATS_DEAN_1911: WeaponStats = WeaponStats::new(
         "DEAN 1911",
         25,
         WeaponAccuracy::High,
-        Duration::from_millis(300),
+        Duration::from_millis(1100),
         Duration::from_millis(1100),
         7,
-        4
+        4,
+        400
     );
     static ref WPN_STATS_PRRR: WeaponStats = WeaponStats::new(
         "PRRR",
@@ -95,7 +106,8 @@ lazy_static! {
         Duration::from_millis(50),
         Duration::from_millis(2500),
         30,
-        4
+        4,
+        5200
     );
 }
 

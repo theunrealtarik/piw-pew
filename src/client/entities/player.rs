@@ -8,7 +8,7 @@ use nalgebra::{Point2, Rotation2, Vector2};
 use raylib::prelude::*;
 use renet::DefaultChannel;
 
-use crate::configs::{window, *};
+use crate::configs::{self, *};
 use crate::core::*;
 use crate::game::{Assets, GameNetwork};
 
@@ -32,10 +32,18 @@ pub struct Player {
 
 impl Player {
     pub fn new(name: String, assets: SharedAssets<Assets>) -> Self {
-        let (center_x, center_y) = Window::center();
-
-        let rectangle = Rectangle::new(center_x, center_y, ENTITY_PLAYER_SIZE, ENTITY_PLAYER_SIZE);
+        let radius = ENTITY_PLAYER_SIZE / 2.0;
+        let rectangle = Rectangle::new(
+            configs::window::WINDOW_CENTER_X,
+            configs::window::WINDOW_CENTER_Y,
+            ENTITY_PLAYER_SIZE,
+            ENTITY_PLAYER_SIZE,
+        );
         let origin = Vector2::new(rectangle.width / 2.0, rectangle.height / 2.0);
+        let offset = RVector2::new(
+            configs::window::WINDOW_CENTER_X - radius,
+            configs::window::WINDOW_CENTER_Y - radius,
+        );
 
         Self {
             name,
@@ -47,11 +55,8 @@ impl Player {
             camera: Camera2D {
                 rotation: 0.0,
                 zoom: 1.0,
-                offset: RVector2::new(center_x, center_y),
-                target: RVector2::new(
-                    rectangle.x + player::PLAYER_CAMERA_OFFSET,
-                    rectangle.y + player::PLAYER_CAMERA_OFFSET,
-                ),
+                offset,
+                target: RVector2::new(rectangle.x, rectangle.y),
             },
             ready: false,
             velocity: Vector2::new(
@@ -73,11 +78,8 @@ impl Player {
         self.rectangle.x = position.x;
         self.rectangle.y = position.y;
 
-        let (offset_x, offset_y) = Window::center();
-        self.camera.target.x = self.rectangle.x + player::PLAYER_CAMERA_OFFSET;
-        self.camera.target.y = self.rectangle.y + player::PLAYER_CAMERA_OFFSET;
-        // self.camera.offset.x = offset_x;
-        // self.camera.offset.y = offset_y;
+        self.camera.target.x = self.rectangle.x;
+        self.camera.target.y = self.rectangle.y;
 
         Vector2::new(self.rectangle.x, self.rectangle.y)
     }
@@ -129,6 +131,19 @@ impl Player {
 
 impl NetUpdateHandle for Player {
     fn net_update(&mut self, handle: &RaylibHandle, network: &mut GameNetwork) {
+        if !self.ready {
+            return;
+        }
+
+        if self.health <= 0 {
+            network.client.send_message(
+                DefaultChannel::ReliableUnordered,
+                GameNetworkPacket::NET_PLAYER_DIED(network.transport.client_id())
+                    .serialized()
+                    .unwrap(),
+            )
+        }
+
         self.direction = Vector2::new(0.0, 0.0);
 
         if handle.is_key_down(KeyboardKey::KEY_W) {
@@ -172,6 +187,10 @@ impl NetUpdateHandle for Player {
 
 impl RenderHandle for Player {
     fn render(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
+        if !self.ready || self.health <= 0 {
+            return;
+        }
+
         d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, player::PLAYER_COLOR);
 
         let radius = self.rectangle.width / 2.0;

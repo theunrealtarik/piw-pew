@@ -40,14 +40,16 @@ pub mod packets {
 
     use crate::types::{Cash, Damage, Health, RawClientId, RawProjectileId, WeaponVariant};
 
-    #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
     pub struct PlayerData {
+        // raw id
         pub _id: RawClientId,
+        pub _last: Option<RawClientId>,
         pub position: (f32, f32),
         pub orientation: f32,
-        pub name: String,
         pub weapon: WeaponVariant,
-        pub hp: Health,
+        pub health: Health,
+        pub cash: Cash,
     }
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -66,6 +68,9 @@ pub mod packets {
         NET_WORLD_MAP(HashMap<(i32, i32), super::types::Tile>),
         NET_WORLD_PLAYERS(HashMap<u64, PlayerData>),
         NET_PLAYER_JOINED(PlayerData),
+        NET_PLAYER_DIED(RawClientId),
+        NET_PLAYER_RESPAWN(RawClientId, PlayerData),
+        NET_PLAYER_KILL_REWARD(PlayerData),
         NET_PLAYER_GRID_POSITION(RawClientId, (i32, i32)),
         NET_PLAYER_WORLD_POSITION(RawClientId, (f32, f32)),
         NET_PLAYER_ORIENTATION(u64, f32),
@@ -92,8 +97,9 @@ pub mod types {
     use std::{cell::RefCell, rc::Rc};
 
     use serde::{Deserialize, Serialize};
+    use strum_macros::VariantArray;
 
-    pub type Cash = u64;
+    pub type Cash = i64;
     pub type Damage = u8;
     pub type Health = i8;
     pub type RawClientId = u64;
@@ -110,7 +116,7 @@ pub mod types {
         GROUND,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, Deserialize, Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, Deserialize, Serialize, VariantArray)]
     pub enum WeaponVariant {
         DEAN_1911,
         AKA_69,

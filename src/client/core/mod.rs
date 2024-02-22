@@ -32,25 +32,3 @@ pub trait AssetsHandle {
     type GameAssets;
     fn get_assets(&self) -> Self::GameAssets;
 }
-
-pub struct Window;
-impl Window {
-    pub fn current_display() -> i32 {
-        window::get_current_monitor()
-    }
-
-    pub fn width() -> i32 {
-        window::get_monitor_width(Self::current_display())
-    }
-
-    pub fn height() -> i32 {
-        window::get_monitor_height(Self::current_display())
-    }
-
-    pub fn center() -> (f32, f32) {
-        let w = Self::width() as f32 / 2.0;
-        let h = Self::height() as f32 / 2.0;
-
-        (w / 2.0, h / 2.0)
-    }
-}

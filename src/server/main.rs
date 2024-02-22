@@ -95,7 +95,6 @@ fn main() {
 
                         let player = Client::new(
                             client_id,
-                            name.to_string(),
                             (
                                 rnd_spwn.0 as f32 * WORLD_TILE_SIZE,
                                 rnd_spwn.1 as f32 * WORLD_TILE_SIZE,
@@ -195,6 +194,47 @@ fn main() {
                                 message,
                             )
                         }
+                        GameNetworkPacket::NET_PLAYER_DIED(id) => {
+                            if player.id.raw() == id {
+                                let rnd_spwn = map.get_random_spawn_position();
+
+                                player.data.cash -= 500;
+                                player.data.cash = nalgebra::clamp(player.data.cash, 0, 16000);
+                                player.data.position = (
+                                    rnd_spwn.0 as f32 * WORLD_TILE_SIZE,
+                                    rnd_spwn.1 as f32 * WORLD_TILE_SIZE,
+                                );
+                                player.data.weapon = WeaponVariant::AKA_69;
+
+                                let killer_id = player.data._last.clone();
+                                player.data._last = None;
+
+                                server.broadcast_message(
+                                    DefaultChannel::ReliableUnordered,
+                                    GameNetworkPacket::NET_PLAYER_RESPAWN(id, player.data)
+                                        .serialized()
+                                        .unwrap(),
+                                );
+
+                                if let Some(id) = killer_id {
+                                    if let Some(player) =
+                                        state.players.get_mut(&ClientId::from_raw(id))
+                                    {
+                                        player.data.cash += 500;
+                                        player.data.cash =
+                                            nalgebra::clamp(player.data.cash, 0, 16000);
+
+                                        server.send_message(
+                                            player.id,
+                                            DefaultChannel::ReliableUnordered,
+                                            GameNetworkPacket::NET_PLAYER_KILL_REWARD(player.data)
+                                                .serialized()
+                                                .unwrap(),
+                                        );
+                                    }
+                                }
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -264,6 +304,7 @@ fn main() {
 
                 if prect.check_collision_circle_rec(RVector2::new(px, py), ENTITY_PROJECTILE_RADIUS)
                 {
+                    player.data._last = Some(projectile.shooter);
                     hits.push(*id);
                     server.broadcast_message(
                         DefaultChannel::ReliableOrdered,
@@ -297,16 +338,17 @@ pub struct Client {
 }
 
 impl Client {
-    fn new(id: ClientId, name: String, (x, y): (f32, f32)) -> Self {
+    fn new(id: ClientId, (x, y): (f32, f32)) -> Self {
         Self {
             id,
             data: PlayerData {
                 _id: id.raw(),
+                _last: None,
                 position: (x, y),
                 orientation: 0.0,
-                name,
-                hp: 100,
+                health: 100,
                 weapon: WeaponVariant::DEAN_1911,
+                cash: 200,
             },
         }
     }

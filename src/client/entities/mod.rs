@@ -39,6 +39,22 @@ impl Invenotry {
         }
     }
 
+    pub fn reset_weapons(&mut self) {
+        self.weapons = HashMap::new();
+        self.add(Weapon::new(WeaponVariant::DEAN_1911));
+    }
+
+    pub fn has(&self, variant: &WeaponVariant) -> bool {
+        match self.weapons.get(variant) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
+    pub fn get(&self, variant: &WeaponVariant) -> Option<&Weapon> {
+        self.weapons.get(variant)
+    }
+
     pub fn render_weapon(
         &mut self,
         d: &mut RaylibMode2D<RaylibDrawHandle>,
@@ -119,8 +135,8 @@ impl Invenotry {
         self.selected_weapon = Some(variant);
     }
 
-    pub fn add(&mut self, variant: WeaponVariant, wpn: Weapon) -> Option<Weapon> {
-        self.weapons.insert(variant, wpn)
+    pub fn add(&mut self, wpn: Weapon) -> Option<Weapon> {
+        self.weapons.insert(wpn.variant, wpn)
     }
 
     pub fn remove(&mut self, variant: WeaponVariant) -> Option<Weapon> {
