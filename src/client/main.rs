@@ -3,7 +3,7 @@ mod core;
 mod entities;
 mod game;
 
-use core::{NetUpdateHandle, RenderHandle, UserInterfaceHandle};
+use core::{NetUpdateHandle, RenderHandle, UserInterfaceHandle, Window};
 use lib::{
     logging::Logger,
     net::{DELTA_TIME, PROTOCOL_ID},
@@ -70,6 +70,22 @@ fn main() {
 
     while !handle.window_should_close() {
         let delta_time = DELTA_TIME;
+
+        if (handle.is_key_down(KeyboardKey::KEY_LEFT_ALT)
+            || handle.is_key_down(KeyboardKey::KEY_RIGHT_ALT))
+            && handle.is_key_down(KeyboardKey::KEY_ENTER)
+        {
+            if handle.is_window_fullscreen() {
+                handle.set_window_size(
+                    configs::window::WINDOW_WIDTH,
+                    configs::window::WINDOW_HEIGHT,
+                );
+            } else {
+                handle.set_window_size(Window::width(), Window::height());
+            }
+
+            handle.toggle_fullscreen();
+        }
 
         network.client.update(delta_time);
         network

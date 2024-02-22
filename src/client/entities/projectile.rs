@@ -1,5 +1,5 @@
-use lib::{packets::RawProjectileId, ENTITY_PROJECTILE_RADIUS, WORLD_TILE_SIZE};
-use nalgebra::{Point2, Vector, Vector2};
+use lib::{types::RawProjectileId, ENTITY_PROJECTILE_RADIUS, WORLD_TILE_SIZE};
+use nalgebra::{Point2, Vector2};
 
 use crate::core::RenderHandle;
 use raylib::prelude::*;

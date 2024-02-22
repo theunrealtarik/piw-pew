@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use lazy_static::lazy_static;
-use lib::packets::WeaponVariant;
+use lib::types::WeaponVariant;
 
 use crate::game::TEXTURE;
 
@@ -50,11 +50,11 @@ impl WeaponStats {
         }
     }
 
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    fn damage(&self) -> &u8 {
+    pub fn damage(&self) -> &u8 {
         &self.damage
     }
 }

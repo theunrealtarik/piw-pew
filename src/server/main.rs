@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 
 use lib::logging::Logger;
 use lib::net::{DELTA_TIME, PROTOCOL_ID, SERVER_MAX_CLIENTS};
-use lib::packets::{GameNetworkPacket, PlayerData, ProjectileData, RawProjectileId, WeaponVariant};
-use lib::types::{RVector2, Tile, Tiles};
+use lib::packets::{GameNetworkPacket, PlayerData, ProjectileData};
+use lib::types::{RVector2, RawProjectileId, Tile, Tiles, WeaponVariant};
 
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
@@ -249,7 +249,7 @@ fn main() {
                         hits.push(*id);
                         server.broadcast_message(
                             DefaultChannel::ReliableOrdered,
-                            GameNetworkPacket::NET_PROJECTILE_IMPACT(*id)
+                            GameNetworkPacket::NET_PROJECTILE_IMPACT(*id, None, projectile.damage)
                                 .serialized()
                                 .unwrap(),
                         );
@@ -265,6 +265,16 @@ fn main() {
                 if prect.check_collision_circle_rec(RVector2::new(px, py), ENTITY_PROJECTILE_RADIUS)
                 {
                     hits.push(*id);
+                    server.broadcast_message(
+                        DefaultChannel::ReliableOrdered,
+                        GameNetworkPacket::NET_PROJECTILE_IMPACT(
+                            *id,
+                            Some(player.id.raw()),
+                            projectile.damage,
+                        )
+                        .serialized()
+                        .unwrap(),
+                    );
                     continue;
                 }
             }
@@ -307,11 +317,6 @@ pub struct ServerState {
     players: HashMap<ClientId, Client>,
     players_count: usize,
     projectiles: HashMap<RawProjectileId, ProjectileData>,
-}
-
-enum Solid {
-    Player(PlayerData),
-    Wall(Tile),
 }
 
 impl Default for ServerState {

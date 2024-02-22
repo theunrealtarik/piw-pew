@@ -1,7 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use lib::{
-    types::{RVector2, SharedAssets},
+    types::{Health, RVector2, SharedAssets},
     ENTITY_PLAYER_SIZE,
 };
 use nalgebra::Vector2;
@@ -21,7 +21,7 @@ pub struct Enemy {
     pub orientation: f32,
     pub rectangle: Rectangle,
     pub origin: Vector2<f32>,
-    pub hp: u8,
+    pub health: Health,
     pub inventory: Invenotry,
     assets: SharedAssets<Assets>,
 }
@@ -32,7 +32,7 @@ impl Enemy {
         x: f32,
         y: f32,
         orientation: f32,
-        hp: u8,
+        hp: Health,
         assets: SharedAssets<Assets>,
     ) -> Self {
         Self {
@@ -40,7 +40,7 @@ impl Enemy {
             orientation,
             rectangle: Rectangle::new(x, y, ENTITY_PLAYER_SIZE as f32, ENTITY_PLAYER_SIZE as f32),
             origin: Default::default(),
-            hp,
+            health: hp,
             inventory: Invenotry::new(Rc::clone(&assets)),
             assets,
         }

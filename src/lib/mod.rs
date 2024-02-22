@@ -1,9 +1,11 @@
 #![allow(non_camel_case_types)]
 
+use types::Health;
+
 pub static WORLD_TILE_SIZE: f32 = 100.0;
 pub static ENTITY_PLAYER_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
 pub static ENTITY_WEAPON_SIZE: f32 = ENTITY_PLAYER_SIZE * 0.0018;
-
+pub static ENTITY_PLAYER_MAX_HEALTH: Health = 100;
 pub static ENTITY_PROJECTILE_SPEED: u32 = 5; // speed is the abs of velocity, it's not velocity (death threat for every unity tutorial).
 pub static ENTITY_PROJECTILE_RADIUS: f32 = 2.0;
 
@@ -36,6 +38,8 @@ pub mod packets {
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
+    use crate::types::{Cash, Damage, Health, RawClientId, RawProjectileId, WeaponVariant};
+
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
     pub struct PlayerData {
         pub _id: RawClientId,
@@ -43,19 +47,7 @@ pub mod packets {
         pub orientation: f32,
         pub name: String,
         pub weapon: WeaponVariant,
-        pub hp: u8,
-    }
-
-    pub type Cash = u64;
-    pub type RawClientId = u64;
-    pub type RawProjectileId = u64;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, Deserialize, Serialize)]
-    pub enum WeaponVariant {
-        DEAN_1911,
-        AKA_69,
-        SHOTPEW,
-        PRRR,
+        pub hp: Health,
     }
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -66,7 +58,7 @@ pub mod packets {
         pub grid: (i32, i32),
         pub orientation: f32,
         pub shooter: RawClientId,
-        pub weapon: WeaponVariant,
+        pub damage: u8,
     }
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -81,17 +73,16 @@ pub mod packets {
         NET_PLAYER_WEAPON_REQUEST(Cash, WeaponVariant),
         NET_PLAYER_WEAPON_RESPONSE(RawClientId, WeaponVariant),
         NET_PROJECTILE_CREATE(ProjectileData),
-        NET_PROJECTILE_IMPACT(RawProjectileId),
+        NET_PROJECTILE_IMPACT(RawProjectileId, Option<RawClientId>, Damage),
     }
 
     impl GameNetworkPacket {
         pub fn serialized(&self) -> Result<Vec<u8>, String> {
             let mut buffer: Vec<u8> = Vec::new();
-            if let Ok(packet) = self.serialize(&mut Serializer::new(&mut buffer)) {
-                return Ok(buffer);
+            match self.serialize(&mut Serializer::new(&mut buffer)) {
+                Ok(_) => Ok(buffer),
+                Err(_) => Err(String::from("failed to serialize packet object")),
             }
-
-            Err(String::from("failed to serialize packet object"))
         }
     }
 }
@@ -102,6 +93,12 @@ pub mod types {
 
     use serde::{Deserialize, Serialize};
 
+    pub type Cash = u64;
+    pub type Damage = u8;
+    pub type Health = i8;
+    pub type RawClientId = u64;
+    pub type RawProjectileId = u64;
+
     pub type RVector2 = raylib::core::math::Vector2;
     pub type Color = raylib::color::Color;
     pub type SharedAssets<T> = Rc<RefCell<T>>;
@@ -111,6 +108,14 @@ pub mod types {
         WALL_SIDE,
         WALL_TOP,
         GROUND,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, Deserialize, Serialize)]
+    pub enum WeaponVariant {
+        DEAN_1911,
+        AKA_69,
+        SHOTPEW,
+        PRRR,
     }
 
     pub type Tiles = std::collections::HashMap<(i32, i32), Tile>;

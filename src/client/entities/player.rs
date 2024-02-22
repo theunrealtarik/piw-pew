@@ -1,8 +1,7 @@
-use std::ops::Add;
 use std::rc::Rc;
 
-use lib::packets::{GameNetworkPacket, WeaponVariant};
-use lib::types::{RVector2, SharedAssets};
+use lib::packets::GameNetworkPacket;
+use lib::types::{Health, RVector2, SharedAssets};
 use lib::{ENTITY_PLAYER_SIZE, ENTITY_WEAPON_SIZE, WORLD_TILE_SIZE};
 
 use nalgebra::{Point2, Rotation2, Vector2};
@@ -26,19 +25,16 @@ pub struct Player {
     pub camera: Camera2D,
     pub velocity: Vector2<f32>,
     pub direction: Vector2<f32>,
-    pub hp: i8,
+    pub health: Health,
     pub ready: bool,
     assets: SharedAssets<Assets>,
 }
 
 impl Player {
     pub fn new(name: String, assets: SharedAssets<Assets>) -> Self {
-        let rectangle = Rectangle::new(
-            window::WINDOW_CENTER_X,
-            window::WINDOW_CENTER_Y,
-            ENTITY_PLAYER_SIZE,
-            ENTITY_PLAYER_SIZE,
-        );
+        let (center_x, center_y) = Window::center();
+
+        let rectangle = Rectangle::new(center_x, center_y, ENTITY_PLAYER_SIZE, ENTITY_PLAYER_SIZE);
         let origin = Vector2::new(rectangle.width / 2.0, rectangle.height / 2.0);
 
         Self {
@@ -51,7 +47,7 @@ impl Player {
             camera: Camera2D {
                 rotation: 0.0,
                 zoom: 1.0,
-                offset: RVector2::new(window::WINDOW_CENTER_X, window::WINDOW_CENTER_Y),
+                offset: RVector2::new(center_x, center_y),
                 target: RVector2::new(
                     rectangle.x + player::PLAYER_CAMERA_OFFSET,
                     rectangle.y + player::PLAYER_CAMERA_OFFSET,
@@ -63,7 +59,7 @@ impl Player {
                 player::PLAYER_INIT_VELOCITY_Y,
             ),
             direction: Vector2::new(1.0, 1.0),
-            hp: 100,
+            health: 100,
             assets,
         }
     }
@@ -77,8 +73,11 @@ impl Player {
         self.rectangle.x = position.x;
         self.rectangle.y = position.y;
 
+        let (offset_x, offset_y) = Window::center();
         self.camera.target.x = self.rectangle.x + player::PLAYER_CAMERA_OFFSET;
         self.camera.target.y = self.rectangle.y + player::PLAYER_CAMERA_OFFSET;
+        // self.camera.offset.x = offset_x;
+        // self.camera.offset.y = offset_y;
 
         Vector2::new(self.rectangle.x, self.rectangle.y)
     }

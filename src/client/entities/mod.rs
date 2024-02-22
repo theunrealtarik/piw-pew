@@ -5,13 +5,12 @@ mod tile;
 mod weapon;
 
 use lib::{
-    packets::{Cash, WeaponVariant},
-    types::{Color, RVector2, SharedAssets},
+    types::{Cash, Color, RVector2, SharedAssets, WeaponVariant},
     ENTITY_WEAPON_SIZE,
 };
-use nalgebra::{Rotation, Rotation2, Vector2};
+use nalgebra::{Rotation2, Vector2};
 use raylib::prelude::*;
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 pub use enemy::*;
 pub use player::*;
@@ -22,6 +21,7 @@ pub use weapon::*;
 use crate::game::Assets;
 
 // this bs is shared between the local player (Player) and other dudes (Enemy)
+#[derive(Debug)]
 pub struct Invenotry {
     pub cash: Cash,
     pub weapons: HashMap<WeaponVariant, Weapon>,

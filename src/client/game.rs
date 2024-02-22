@@ -1,15 +1,17 @@
 use crate::configs;
-use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UpdateHandle, UserInterfaceHandle};
+use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UserInterfaceHandle, Window};
 use crate::entities::{Enemy, GameWorldTile, Player, Projectile, Weapon};
 
-use lib::packets::{ProjectileData, RawProjectileId};
-use lib::types::SharedAssets;
+use lib::packets::ProjectileData;
+use lib::types::{Health, RawProjectileId, SharedAssets};
 use lib::utils::POINT_OFFSETS;
 use lib::{
     packets::GameNetworkPacket,
     types::{RVector2, Tile},
 };
-use lib::{ENTITY_PROJECTILE_RADIUS, ENTITY_PROJECTILE_SPEED, WORLD_TILE_SIZE};
+use lib::{
+    ENTITY_PLAYER_MAX_HEALTH, ENTITY_PROJECTILE_RADIUS, ENTITY_PROJECTILE_SPEED, WORLD_TILE_SIZE,
+};
 
 use raylib::{
     core::{text::Font, texture::Texture2D},
@@ -26,7 +28,6 @@ extern crate serde;
 extern crate serde_derive;
 
 use std::hash::Hash;
-use std::sync::atomic::Ordering;
 use std::time::Instant;
 use std::{
     collections::HashMap,
@@ -180,9 +181,25 @@ impl NetUpdateHandle for Game {
                             ),
                         );
                     }
-                    GameNetworkPacket::NET_PROJECTILE_IMPACT(id) => {
-                        log::debug!("{:#?}", id);
-                        self.world.projectiles.remove(&id);
+                    GameNetworkPacket::NET_PROJECTILE_IMPACT(pid, cid, damage) => {
+                        self.world.projectiles.remove(&pid);
+
+                        if let Some(cid) = cid {
+                            if cid == network.transport.client_id() {
+                                local_player.health -= damage as Health;
+                                local_player.health = nalgebra::clamp(
+                                    local_player.health,
+                                    0,
+                                    ENTITY_PLAYER_MAX_HEALTH,
+                                );
+                            } else if let Some(puppet) =
+                                self.world.enemies.get_mut(&ClientId::from_raw(cid))
+                            {
+                                puppet.health -= damage as Health;
+                                puppet.health =
+                                    nalgebra::clamp(puppet.health, 0, ENTITY_PLAYER_MAX_HEALTH);
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -252,7 +269,7 @@ impl NetUpdateHandle for Game {
                             velocity: (p.velocity.x, p.velocity.y),
                             orientation: p.orientation,
                             shooter: network.transport.client_id(),
-                            weapon: wpn.variant,
+                            damage: *wpn.stats.damage(),
                         })
                         .serialized()
                         .unwrap(),
@@ -554,17 +571,14 @@ impl RenderHandle for GameMenu {
                 let logo_texture: &Texture2D = logo_buf;
                 let loading_texture: &Texture2D = loading_buf;
 
+                let (center_x, center_y) = Window::center();
                 let (logo_width, logo_height) =
                     (logo_texture.width as f32, logo_texture.height as f32);
+
                 d.draw_texture_pro(
                     logo_texture,
                     Rectangle::new(0.0, 0.0, logo_width, logo_height),
-                    Rectangle::new(
-                        configs::window::WINDOW_CENTER_X,
-                        configs::window::WINDOW_CENTER_Y,
-                        logo_width / 4.0,
-                        logo_height / 4.0,
-                    ),
+                    Rectangle::new(center_x, center_y, logo_width / 4.0, logo_height / 4.0),
                     RVector2::new(logo_width / 8.0, logo_height / 4.0),
                     0.0,
                     Color::WHITE,
@@ -578,12 +592,7 @@ impl RenderHandle for GameMenu {
                         loading_texture.width as f32,
                         loading_texture.height as f32,
                     ),
-                    Rectangle::new(
-                        configs::window::WINDOW_CENTER_X,
-                        configs::window::WINDOW_CENTER_Y + 75.0,
-                        100.0,
-                        100.0,
-                    ),
+                    Rectangle::new(center_x, center_y + 75.0, 100.0, 100.0),
                     RVector2::new(50.0, 50.0),
                     self.rotation,
                     Color::WHITE,
@@ -708,19 +717,46 @@ impl GameWorld {
 
 impl UserInterfaceHandle for Game {
     fn display(&mut self, d: &mut RaylibDrawHandle) {
+        let assets = self.assets.borrow();
+        let font = assets.fonts.get(&FONT::FNT_POPPINS).unwrap();
         let local_player = &self.player;
 
         if let Some(wpn) = local_player.inventory.selected_weapon() {
+            #[cfg(debug_assertions)]
+            {
+                let data = format!("{:#?}", wpn.stats);
+                d.draw_text_ex(
+                    &font,
+                    &data,
+                    RVector2::new(
+                        configs::window::WINDOW_PADDING as f32,
+                        configs::window::WINDOW_PADDING as f32 * 3.0,
+                    ),
+                    24.0,
+                    1.0,
+                    Color::RED,
+                );
+            }
             let ammo = format!(
                 "{}/{}",
                 wpn.stats.curr_mag_size,
-                wpn.stats.curr_total_ammo - wpn.stats.curr_total_ammo
+                wpn.stats.curr_total_ammo - wpn.stats.curr_mag_size
             );
 
-            d.draw_text(&ammo, 10, 10, 24, Color::WHITE);
+            d.draw_text_ex(
+                &font,
+                &ammo,
+                RVector2::new(
+                    configs::window::WINDOW_PADDING as f32,
+                    configs::window::WINDOW_PADDING as f32 * 2.0,
+                ),
+                24.0,
+                1.0,
+                Color::WHITE,
+            );
         }
 
-        let is_alive = local_player.hp > 0;
+        let is_alive = local_player.health > 0;
         if is_alive {
             d.draw_rectangle_rounded(
                 Rectangle::new(
@@ -729,27 +765,28 @@ impl UserInterfaceHandle for Game {
                     100.0,
                     20.0,
                 ),
-                5.0,
+                2.0,
                 0,
                 Color::new(0, 0, 0, 50),
             );
+
             d.draw_rectangle_rounded(
                 Rectangle::new(
                     configs::window::WINDOW_PADDING as f32,
                     configs::window::WINDOW_PADDING as f32,
-                    100.0,
+                    (local_player.health as f32) / (ENTITY_PLAYER_MAX_HEALTH as f32) * 100.0,
                     20.0,
                 ),
-                5.0,
-                0,
-                Color::new(0, 0, 0, 50),
+                0.2,
+                1,
+                Color::new(42, 192, 138, 255),
             );
         }
     }
 }
 
 struct GameTimer<T: Copy + PartialEq + Eq + std::hash::Hash> {
-    value: HashMap<T, Timer<T>>,
+    value: HashMap<T, Timer>,
 }
 
 impl<T: Copy + PartialEq + Eq + std::hash::Hash> Default for GameTimer<T> {
@@ -775,23 +812,21 @@ impl<T: Copy + Eq + std::hash::Hash> GameTimer<T> {
                 }
             }
             None => {
-                self.value.insert(id, Timer::new(id));
+                self.value.insert(id, Timer::new());
                 true
             }
         }
     }
 }
 
-struct Timer<I> {
+struct Timer {
     instant: Instant,
-    identifier: I,
 }
 
-impl<I> Timer<I> {
-    fn new(identifier: I) -> Self {
+impl Timer {
+    fn new() -> Self {
         Self {
             instant: Instant::now(),
-            identifier,
         }
     }
 }
