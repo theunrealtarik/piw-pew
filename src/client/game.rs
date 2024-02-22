@@ -1,14 +1,16 @@
-use crate::configs::window;
+use crate::configs;
 use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UpdateHandle, UserInterfaceHandle};
 use crate::entities::{Enemy, GameWorldTile, Player, Projectile, Weapon};
 
+use lib::packets::{ProjectileData, RawProjectileId};
 use lib::types::SharedAssets;
 use lib::utils::POINT_OFFSETS;
 use lib::{
     packets::GameNetworkPacket,
     types::{RVector2, Tile},
 };
-use lib::{ENTITY_PROJECTILE_SPEED, WORLD_TILE_SIZE};
+use lib::{ENTITY_PROJECTILE_RADIUS, ENTITY_PROJECTILE_SPEED, WORLD_TILE_SIZE};
+
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
@@ -18,13 +20,13 @@ use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport, NetcodeError},
     ConnectionConfig, DefaultChannel, RenetClient,
 };
-use rmps::Serializer;
-use serde::Serialize;
 
 extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
+use std::hash::Hash;
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 use std::{
     collections::HashMap,
@@ -76,7 +78,6 @@ impl NetUpdateHandle for Game {
         {
             if let Ok(packet) = rmp_serde::from_slice::<GameNetworkPacket>(&message) {
                 match packet {
-                    // runs only once (hopefully)
                     GameNetworkPacket::NET_WORLD_MAP(map) => {
                         let mut tiles = HashMap::new();
                         for ((x, y), tile) in map {
@@ -168,6 +169,21 @@ impl NetUpdateHandle for Game {
                             enemy.rectangle.y = y;
                         }
                     }
+                    GameNetworkPacket::NET_PROJECTILE_CREATE(projectile) => {
+                        self.world.projectiles.insert(
+                            projectile.id,
+                            Projectile::new(
+                                projectile.id,
+                                projectile.position,
+                                ENTITY_PROJECTILE_SPEED,
+                                projectile.orientation,
+                            ),
+                        );
+                    }
+                    GameNetworkPacket::NET_PROJECTILE_IMPACT(id) => {
+                        log::debug!("{:#?}", id);
+                        self.world.projectiles.remove(&id);
+                    }
                     _ => {}
                 }
             };
@@ -191,12 +207,25 @@ impl NetUpdateHandle for Game {
             }
         }
 
+        while let Some(message) = network.client.receive_message(DefaultChannel::Unreliable) {
+            if let Ok(packet) = rmp_serde::from_slice::<GameNetworkPacket>(&message) {
+                match packet {
+                    GameNetworkPacket::NET_PLAYER_ORIENTATION(id, orientation) => {
+                        if let Some(puppet) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
+                            puppet.orientation = orientation
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         // local player stuff
-        local_player.update(handle);
+        local_player.net_update(handle, network);
 
         let position = local_player.on_move(handle);
 
-        if self.world.in_of_bounds(
+        if self.world.in_bounds(
             position.x,
             position.y,
             local_player.rectangle.width,
@@ -207,11 +236,27 @@ impl NetUpdateHandle for Game {
                     .timers
                     .after(Timers::WeaponShot(wpn.stats.fire_time), wpn.stats.fire_time)
                 {
-                    self.world.projectiles.push(Projectile::new(
-                        muzzle,
+                    let p = Projectile::new(
+                        u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap()),
+                        (muzzle.x, muzzle.y),
                         ENTITY_PROJECTILE_SPEED,
                         theta,
-                    ));
+                    );
+
+                    network.client.send_message(
+                        DefaultChannel::ReliableOrdered,
+                        GameNetworkPacket::NET_PROJECTILE_CREATE(ProjectileData {
+                            id: p.id,
+                            position: (p.position.x, p.position.y),
+                            grid: (p.grid.x, p.grid.y),
+                            velocity: (p.velocity.x, p.velocity.y),
+                            orientation: p.orientation,
+                            shooter: network.transport.client_id(),
+                            weapon: wpn.variant,
+                        })
+                        .serialized()
+                        .unwrap(),
+                    );
                 }
             });
 
@@ -235,16 +280,16 @@ impl NetUpdateHandle for Game {
                 }
             }
 
-            let mut position_buffer = Vec::new();
             let position = local_player.move_to(position);
-
-            GameNetworkPacket::NET_PLAYER_WORLD_POSITION(network.uuid, (position.x, position.y))
-                .serialize(&mut Serializer::new(&mut position_buffer))
-                .unwrap();
-
-            network
-                .client
-                .send_message(DefaultChannel::ReliableUnordered, position_buffer);
+            network.client.send_message(
+                DefaultChannel::ReliableUnordered,
+                GameNetworkPacket::NET_PLAYER_WORLD_POSITION(
+                    network.uuid,
+                    (position.x, position.y),
+                )
+                .serialized()
+                .unwrap(),
+            );
         }
     }
 }
@@ -398,7 +443,6 @@ asset!(
         TILE_GROUND,
         UI_LOADING,
         UI_LOGO,
-        ENV_BULLET
     }
 );
 
@@ -516,8 +560,8 @@ impl RenderHandle for GameMenu {
                     logo_texture,
                     Rectangle::new(0.0, 0.0, logo_width, logo_height),
                     Rectangle::new(
-                        window::WINDOW_CENTER_X,
-                        window::WINDOW_CENTER_Y,
+                        configs::window::WINDOW_CENTER_X,
+                        configs::window::WINDOW_CENTER_Y,
                         logo_width / 4.0,
                         logo_height / 4.0,
                     ),
@@ -535,8 +579,8 @@ impl RenderHandle for GameMenu {
                         loading_texture.height as f32,
                     ),
                     Rectangle::new(
-                        window::WINDOW_CENTER_X,
-                        window::WINDOW_CENTER_Y + 75.0,
+                        configs::window::WINDOW_CENTER_X,
+                        configs::window::WINDOW_CENTER_Y + 75.0,
                         100.0,
                         100.0,
                     ),
@@ -612,7 +656,7 @@ impl GameSettings {
 
 pub struct GameWorld {
     tiles: HashMap<(i32, i32), GameWorldTile>,
-    projectiles: Vec<Projectile>,
+    projectiles: HashMap<RawProjectileId, Projectile>,
     enemies: HashMap<ClientId, Enemy>,
 }
 
@@ -621,7 +665,7 @@ impl GameWorld {
         Self {
             tiles: HashMap::new(),
             enemies: HashMap::new(),
-            projectiles: Vec::new(),
+            projectiles: HashMap::new(),
         }
     }
 
@@ -636,20 +680,17 @@ impl GameWorld {
     }
 
     fn render_projectiles(&mut self, d: &mut RaylibMode2D<RaylibDrawHandle>) {
-        let index = 0;
-        while index < self.projectiles.len() {
-            let p = &self.projectiles[index];
-
-            if self.in_of_bounds(
+        for (id, p) in &mut self.projectiles.clone() {
+            if self.in_bounds(
                 p.position.x,
                 p.position.y,
-                p.rectangle.width,
-                p.rectangle.height,
+                ENTITY_PROJECTILE_RADIUS,
+                ENTITY_PROJECTILE_RADIUS,
             ) {
-                let p = &mut self.projectiles[index];
+                let p = self.projectiles.get_mut(&id).unwrap();
                 p.render(d);
             } else {
-                self.projectiles.swap_remove(index);
+                self.projectiles.remove(id);
             }
         }
     }
@@ -659,7 +700,7 @@ impl GameWorld {
         (length, length)
     }
 
-    fn in_of_bounds(&self, x: f32, y: f32, width: f32, height: f32) -> bool {
+    fn in_bounds(&self, x: f32, y: f32, width: f32, height: f32) -> bool {
         let bounds = self.bounds();
         x > 0.0 && x <= bounds.0 - width && y > 0.0 && y < bounds.1 - height
     }
@@ -677,6 +718,32 @@ impl UserInterfaceHandle for Game {
             );
 
             d.draw_text(&ammo, 10, 10, 24, Color::WHITE);
+        }
+
+        let is_alive = local_player.hp > 0;
+        if is_alive {
+            d.draw_rectangle_rounded(
+                Rectangle::new(
+                    configs::window::WINDOW_PADDING as f32,
+                    configs::window::WINDOW_PADDING as f32,
+                    100.0,
+                    20.0,
+                ),
+                5.0,
+                0,
+                Color::new(0, 0, 0, 50),
+            );
+            d.draw_rectangle_rounded(
+                Rectangle::new(
+                    configs::window::WINDOW_PADDING as f32,
+                    configs::window::WINDOW_PADDING as f32,
+                    100.0,
+                    20.0,
+                ),
+                5.0,
+                0,
+                Color::new(0, 0, 0, 50),
+            );
         }
     }
 }
@@ -709,7 +776,7 @@ impl<T: Copy + Eq + std::hash::Hash> GameTimer<T> {
             }
             None => {
                 self.value.insert(id, Timer::new(id));
-                false
+                true
             }
         }
     }

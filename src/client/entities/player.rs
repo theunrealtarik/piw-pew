@@ -1,16 +1,17 @@
 use std::ops::Add;
 use std::rc::Rc;
 
-use lib::packets::WeaponVariant;
+use lib::packets::{GameNetworkPacket, WeaponVariant};
 use lib::types::{RVector2, SharedAssets};
 use lib::{ENTITY_PLAYER_SIZE, ENTITY_WEAPON_SIZE, WORLD_TILE_SIZE};
 
 use nalgebra::{Point2, Rotation2, Vector2};
 use raylib::prelude::*;
+use renet::DefaultChannel;
 
 use crate::configs::{window, *};
 use crate::core::*;
-use crate::game::Assets;
+use crate::game::{Assets, GameNetwork};
 
 use super::{Invenotry, Weapon};
 
@@ -127,8 +128,8 @@ impl Player {
     }
 }
 
-impl UpdateHandle for Player {
-    fn update(&mut self, handle: &RaylibHandle) {
+impl NetUpdateHandle for Player {
+    fn net_update(&mut self, handle: &RaylibHandle, network: &mut GameNetwork) {
         self.direction = Vector2::new(0.0, 0.0);
 
         if handle.is_key_down(KeyboardKey::KEY_W) {
@@ -157,6 +158,16 @@ impl UpdateHandle for Player {
         let mouse_y = mouse_pos.y as f32 - (player_pos.y + ENTITY_PLAYER_SIZE / 2.0);
 
         self.orientation = mouse_y.atan2(mouse_x);
+
+        network.client.send_message(
+            DefaultChannel::Unreliable,
+            GameNetworkPacket::NET_PLAYER_ORIENTATION(
+                network.transport.client_id(),
+                self.orientation,
+            )
+            .serialized()
+            .unwrap(),
+        )
     }
 }
 

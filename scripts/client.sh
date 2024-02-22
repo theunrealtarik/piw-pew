@@ -13,7 +13,7 @@ pids=()
 
 for (( i=1; i<=$num_instances; i++ )); do
     echo "Starting client instance $i"
-    cargo run --bin client &
+     RUST_BACKTRACE=1 cargo run --bin client &
     pids+=($!)
 done
 

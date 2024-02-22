@@ -3,7 +3,9 @@
 pub static WORLD_TILE_SIZE: f32 = 100.0;
 pub static ENTITY_PLAYER_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
 pub static ENTITY_WEAPON_SIZE: f32 = ENTITY_PLAYER_SIZE * 0.0018;
-pub static ENTITY_PROJECTILE_SPEED: u32 = 50;
+
+pub static ENTITY_PROJECTILE_SPEED: u32 = 5; // speed is the abs of velocity, it's not velocity (death threat for every unity tutorial).
+pub static ENTITY_PROJECTILE_RADIUS: f32 = 2.0;
 
 pub mod net {
     use std::time::Duration;
@@ -46,6 +48,7 @@ pub mod packets {
 
     pub type Cash = u64;
     pub type RawClientId = u64;
+    pub type RawProjectileId = u64;
 
     #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, Deserialize, Serialize)]
     pub enum WeaponVariant {
@@ -57,6 +60,7 @@ pub mod packets {
 
     #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
     pub struct ProjectileData {
+        pub id: RawProjectileId,
         pub position: (f32, f32),
         pub velocity: (f32, f32),
         pub grid: (i32, i32),
@@ -72,12 +76,12 @@ pub mod packets {
         NET_PLAYER_JOINED(PlayerData),
         NET_PLAYER_GRID_POSITION(RawClientId, (i32, i32)),
         NET_PLAYER_WORLD_POSITION(RawClientId, (f32, f32)),
-        NET_PLAYER_ORIENTATION_ANGLE(u64, usize),
+        NET_PLAYER_ORIENTATION(u64, f32),
         NET_PLAYER_LEFT(RawClientId),
         NET_PLAYER_WEAPON_REQUEST(Cash, WeaponVariant),
         NET_PLAYER_WEAPON_RESPONSE(RawClientId, WeaponVariant),
         NET_PROJECTILE_CREATE(ProjectileData),
-        NET_PROJECTILE_IMPACT(ProjectileData),
+        NET_PROJECTILE_IMPACT(RawProjectileId),
     }
 
     impl GameNetworkPacket {

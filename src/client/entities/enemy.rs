@@ -52,12 +52,12 @@ impl RenderHandle for Enemy {
     where
         Self: AssetsHandle,
     {
-        d.draw_rectangle_pro(
-            self.rectangle,
-            RVector2::zero(),
-            self.orientation,
-            Color::RED,
-        );
+        d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, Color::RED);
+
+        let radius = self.rectangle.width / 2.0;
+        let origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
+        self.inventory
+            .render_weapon(d, origin, radius, self.orientation);
     }
 }
 

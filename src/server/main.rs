@@ -1,23 +1,28 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+extern crate nalgebra as na;
 extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
-use lib::WORLD_TILE_SIZE;
+use lib::utils::POINT_OFFSETS;
+use lib::{ENTITY_PLAYER_SIZE, ENTITY_PROJECTILE_RADIUS, WORLD_TILE_SIZE};
+
 use rand::prelude::*;
+use raylib::math::Rectangle;
 use rmps::Serializer;
 use serde::{Deserialize, Serialize};
 
 use lib::logging::Logger;
 use lib::net::{DELTA_TIME, PROTOCOL_ID, SERVER_MAX_CLIENTS};
-use lib::packets::{GameNetworkPacket, PlayerData, WeaponVariant};
-use lib::types::{Tile, Tiles};
+use lib::packets::{GameNetworkPacket, PlayerData, ProjectileData, RawProjectileId, WeaponVariant};
+use lib::types::{RVector2, Tile, Tiles};
 
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
     ClientId, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent,
 };
+
 use std::{
     collections::HashMap,
     env::current_dir,
@@ -26,29 +31,6 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     time::SystemTime,
 };
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct Client {
-    id: ClientId,
-    data: PlayerData,
-}
-
-impl Client {
-    fn new(id: ClientId, name: String, (x, y): (f32, f32)) -> Self {
-        Self {
-            id,
-            data: PlayerData {
-                _id: id.raw(),
-                position: (x, y),
-                orientation: 0.0,
-                name,
-                hp: 100,
-                weapon: WeaponVariant::DEAN_1911,
-            },
-        }
-    }
-}
 
 fn main() {
     env_logger::init_from_env(Logger::env());
@@ -73,10 +55,7 @@ fn main() {
     let map_buffer = map.serialized();
 
     let mut server: RenetServer = RenetServer::new(connection_config);
-    let mut state = ServerState {
-        players_count: 0,
-        players: HashMap::new(),
-    };
+    let mut state = ServerState::default();
 
     let server_config = ServerConfig {
         current_time: SystemTime::now()
@@ -100,7 +79,6 @@ fn main() {
         }
     };
 
-    log::info!("waiting for connections");
     loop {
         let delta_time = DELTA_TIME;
         server.update(delta_time);
@@ -187,22 +165,16 @@ fn main() {
             while let Some(message) =
                 server.receive_message(client_id, DefaultChannel::ReliableOrdered)
             {
-                if let (Ok(packet), Some(player)) = (
+                if let (Ok(packet), Some(_)) = (
                     rmp_serde::from_slice::<GameNetworkPacket>(&message),
                     state.players.get_mut(&client_id),
                 ) {
                     match packet {
-                        GameNetworkPacket::NET_WORLD_MAP(_) => todo!(),
-                        GameNetworkPacket::NET_WORLD_PLAYERS(_) => todo!(),
-                        GameNetworkPacket::NET_PLAYER_JOINED(_) => todo!(),
-                        GameNetworkPacket::NET_PLAYER_GRID_POSITION(_, _) => todo!(),
-                        GameNetworkPacket::NET_PLAYER_WORLD_POSITION(_, _) => todo!(),
-                        GameNetworkPacket::NET_PLAYER_ORIENTATION_ANGLE(_, _) => todo!(),
-                        GameNetworkPacket::NET_PLAYER_LEFT(_) => todo!(),
-                        GameNetworkPacket::NET_PLAYER_WEAPON_REQUEST(_, _) => todo!(),
-                        GameNetworkPacket::NET_PLAYER_WEAPON_RESPONSE(_, _) => todo!(),
-                        GameNetworkPacket::NET_PROJECTILE_CREATE(_) => todo!(),
-                        GameNetworkPacket::NET_PROJECTILE_IMPACT(_) => todo!(),
+                        GameNetworkPacket::NET_PROJECTILE_CREATE(projectile) => {
+                            state.projectiles.insert(projectile.id, projectile);
+                            server.broadcast_message(DefaultChannel::ReliableOrdered, message);
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -227,20 +199,129 @@ fn main() {
                     }
                 }
             }
+
+            while let Some(message) = server.receive_message(client_id, DefaultChannel::Unreliable)
+            {
+                if let (Ok(packet), Some(_)) = (
+                    rmp_serde::from_slice::<GameNetworkPacket>(&message),
+                    state.players.get_mut(&client_id),
+                ) {
+                    match packet {
+                        GameNetworkPacket::NET_PLAYER_ORIENTATION(_, _) => {
+                            server.broadcast_message(DefaultChannel::Unreliable, message)
+                        }
+                        _ => {}
+                    }
+                }
+            }
         }
+
+        let mut hits: Vec<u64> = Vec::new();
+
+        for (id, projectile) in &mut state.projectiles {
+            projectile.position.0 += projectile.velocity.0;
+            projectile.position.1 += projectile.velocity.1;
+
+            let (px, py) = projectile.position;
+            let (gx, gy) = (
+                (px / WORLD_TILE_SIZE).round() as i32,
+                (py / WORLD_TILE_SIZE).round() as i32,
+            );
+
+            let t_offsets = POINT_OFFSETS
+                .into_iter()
+                .map(|(dx, dy)| (gx + dx as i32, gy + dy as i32))
+                .collect::<Vec<_>>();
+
+            for (x, y) in t_offsets {
+                if let Some(t) = map.tiles.get(&(x, y)) {
+                    let tile = Rectangle::new(
+                        (x as f32) * WORLD_TILE_SIZE,
+                        (y as f32) * WORLD_TILE_SIZE,
+                        WORLD_TILE_SIZE,
+                        WORLD_TILE_SIZE,
+                    );
+
+                    if tile
+                        .check_collision_circle_rec(RVector2::new(px, py), ENTITY_PROJECTILE_RADIUS)
+                        && *t != Tile::GROUND
+                    {
+                        hits.push(*id);
+                        server.broadcast_message(
+                            DefaultChannel::ReliableOrdered,
+                            GameNetworkPacket::NET_PROJECTILE_IMPACT(*id)
+                                .serialized()
+                                .unwrap(),
+                        );
+                        continue;
+                    }
+                }
+            }
+
+            for (pid, player) in &mut state.players {
+                let (x, y) = (player.data.position.0, player.data.position.1);
+                let prect = Rectangle::new(x, y, ENTITY_PLAYER_SIZE, ENTITY_PLAYER_SIZE);
+
+                if prect.check_collision_circle_rec(RVector2::new(px, py), ENTITY_PROJECTILE_RADIUS)
+                {
+                    hits.push(*id);
+                    continue;
+                }
+            }
+        }
+
+        hits.iter().for_each(|i| {
+            state.projectiles.remove(i);
+        });
 
         transport.send_packets(&mut server);
         std::thread::sleep(delta_time);
     }
 }
 
-#[derive(Debug)]
-pub struct GameState {}
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct Client {
+    id: ClientId,
+    data: PlayerData,
+}
+
+impl Client {
+    fn new(id: ClientId, name: String, (x, y): (f32, f32)) -> Self {
+        Self {
+            id,
+            data: PlayerData {
+                _id: id.raw(),
+                position: (x, y),
+                orientation: 0.0,
+                name,
+                hp: 100,
+                weapon: WeaponVariant::DEAN_1911,
+            },
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ServerState {
     players: HashMap<ClientId, Client>,
     players_count: usize,
+    projectiles: HashMap<RawProjectileId, ProjectileData>,
+}
+
+enum Solid {
+    Player(PlayerData),
+    Wall(Tile),
+}
+
+impl Default for ServerState {
+    fn default() -> Self {
+        Self {
+            players: HashMap::new(),
+            projectiles: HashMap::new(),
+            players_count: 0,
+        }
+    }
 }
 
 impl ServerState {
@@ -324,5 +405,14 @@ impl Map {
         let tile_pair = ground_tiles.choose(&mut rng).unwrap();
 
         *tile_pair.0
+    }
+    fn bounds(&self) -> (f32, f32) {
+        let length = (self.tiles.len() as f32).sqrt() * WORLD_TILE_SIZE;
+        (length, length)
+    }
+
+    fn in_of_bounds(&self, x: f32, y: f32, width: f32, height: f32) -> bool {
+        let bounds = self.bounds();
+        x > 0.0 && x <= bounds.0 - width && y > 0.0 && y < bounds.1 - height
     }
 }

@@ -17,6 +17,7 @@ path = "./src/lib/mod.rs"
 
 [dependencies]
 nalgebra = { version = "0.32.3", features = ["serde-serialize"] }
+ncollide2d = "0.33.0"
 raylib = { version = "3.7" }
 log = "0.4"
 env_logger = "^0.11.2"

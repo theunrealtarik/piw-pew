@@ -1,38 +1,36 @@
-use lib::WORLD_TILE_SIZE;
-use nalgebra::{Point2, Vector2};
+use lib::{packets::RawProjectileId, ENTITY_PROJECTILE_RADIUS, WORLD_TILE_SIZE};
+use nalgebra::{Point2, Vector, Vector2};
 
 use crate::core::RenderHandle;
 use raylib::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct Projectile {
+    pub id: RawProjectileId,
     pub position: Vector2<f32>,
     pub velocity: Vector2<f32>,
     pub grid: Point2<i32>,
     pub orientation: f32,
-    pub rectangle: Rectangle,
 }
 
 impl Projectile {
-    pub fn new(position: Vector2<f32>, speed: u32, orientation: f32) -> Self {
+    pub fn new(id: RawProjectileId, position: (f32, f32), speed: u32, orientation: f32) -> Self {
         let velocity = Vector2::new(
             speed as f32 * orientation.cos(),
             speed as f32 * orientation.sin(),
         );
 
         let grid = Point2::new(
-            (position.x.round() / WORLD_TILE_SIZE) as i32,
-            (position.y.round() / WORLD_TILE_SIZE) as i32,
+            (position.0.round() / WORLD_TILE_SIZE) as i32,
+            (position.1.round() / WORLD_TILE_SIZE) as i32,
         );
 
-        let rectangle = Rectangle::new(position.x, position.y, 5.0, 5.0);
-
         Self {
-            position,
+            id,
+            position: Vector2::new(position.0, position.1),
             velocity,
             grid,
             orientation,
-            rectangle,
         }
     }
 }
@@ -41,14 +39,11 @@ impl RenderHandle for Projectile {
     fn render(&mut self, handle: &mut RaylibMode2D<RaylibDrawHandle>) {
         self.position += self.velocity;
 
-        self.rectangle.x = self.position.x;
-        self.rectangle.y = self.position.y;
-
         handle.draw_circle(
             self.position.x as i32,
             self.position.y as i32,
-            5.0,
-            Color::WHITE,
+            ENTITY_PROJECTILE_RADIUS,
+            Color::YELLOW,
         );
     }
 }
