@@ -1,12 +1,22 @@
-use crate::game::TEXTURE;
-use lib::types::Tile;
 use nalgebra::{Point2, Vector2};
 use raylib::math::Rectangle;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
-pub struct GameWorldTile {
-    pub variant: Tile,
-    pub texture: TEXTURE,
+use crate::prelude::*;
+
+pub type Tiles = std::collections::HashMap<(i32, i32), TileVariant>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum TileVariant {
+    WALL_SIDE,
+    WALL_TOP,
+    GROUND,
+}
+
+#[derive(Debug, Clone)]
+pub struct Tile {
+    pub variant: TileVariant,
+    pub texture: LTexture,
     pub size: f32,
     pub src_rect: Rectangle,
     pub dest_rect: Rectangle,
@@ -14,10 +24,10 @@ pub struct GameWorldTile {
     pub position: Vector2<f32>,
 }
 
-impl GameWorldTile {
+impl Tile {
     pub fn new(
-        variant: Tile,
-        texture: TEXTURE,
+        variant: TileVariant,
+        texture: LTexture,
         grid_x: u8,
         grid_y: u8,
         width: f32,

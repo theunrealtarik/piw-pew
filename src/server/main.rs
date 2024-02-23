@@ -5,18 +5,14 @@ extern crate rmp_serde as rmps;
 extern crate serde;
 extern crate serde_derive;
 
-use lib::utils::POINT_OFFSETS;
-use lib::{ENTITY_PLAYER_SIZE, ENTITY_PROJECTILE_RADIUS, WORLD_TILE_SIZE};
-
 use rand::prelude::*;
-use raylib::math::Rectangle;
+use raylib::math::{self, Rectangle};
 use rmps::Serializer;
 use serde::{Deserialize, Serialize};
 
-use lib::logging::Logger;
-use lib::net::{GameNetworkPacket, PlayerData, ProjectileData};
-use lib::net::{DELTA_TIME, PROTOCOL_ID, SERVER_MAX_CLIENTS};
-use lib::types::{RVector2, RawProjectileId, Tile, Tiles, WeaponVariant};
+use lib::prelude::*;
+use lib::types::*;
+use lib::utils::logging::*;
 
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
@@ -282,9 +278,10 @@ fn main() {
                         WORLD_TILE_SIZE,
                     );
 
-                    if tile
-                        .check_collision_circle_rec(RVector2::new(px, py), ENTITY_PROJECTILE_RADIUS)
-                        && *t != Tile::GROUND
+                    if tile.check_collision_circle_rec(
+                        math::Vector2::new(px, py),
+                        ENTITY_PROJECTILE_RADIUS,
+                    ) && *t != TileVariant::GROUND
                     {
                         hits.push(*id);
                         server.broadcast_message(
@@ -302,8 +299,10 @@ fn main() {
                 let (x, y) = (player.data.position.0, player.data.position.1);
                 let prect = Rectangle::new(x, y, ENTITY_PLAYER_SIZE, ENTITY_PLAYER_SIZE);
 
-                if prect.check_collision_circle_rec(RVector2::new(px, py), ENTITY_PROJECTILE_RADIUS)
-                {
+                if prect.check_collision_circle_rec(
+                    math::Vector2::new(px, py),
+                    ENTITY_PROJECTILE_RADIUS,
+                ) {
                     player.data._last = Some(projectile.shooter);
                     hits.push(*id);
                     server.broadcast_message(
@@ -405,9 +404,9 @@ impl Map {
                         for (y, line) in buffer.lines().enumerate() {
                             for (x, symbol) in line.chars().enumerate() {
                                 let tile = match symbol {
-                                    'S' => Tile::WALL_SIDE,
-                                    'T' => Tile::WALL_TOP,
-                                    _ => Tile::GROUND,
+                                    'S' => TileVariant::WALL_SIDE,
+                                    'T' => TileVariant::WALL_TOP,
+                                    _ => TileVariant::GROUND,
                                 };
                                 map.insert((x as i32, y as i32), tile);
                             }
@@ -437,7 +436,7 @@ impl Map {
     fn get_ground(&self) -> Tiles {
         let mut map: Tiles = HashMap::new();
         for ((x, y), tile) in &self.tiles {
-            if *tile == Tile::GROUND {
+            if *tile == TileVariant::GROUND {
                 map.insert((*x, *y), tile.clone());
             }
         }
@@ -448,7 +447,9 @@ impl Map {
     fn get_random_spawn_position(&self) -> (i32, i32) {
         let mut rng = thread_rng();
         let ground_tiles = self.get_ground();
-        let ground_tiles = ground_tiles.iter().collect::<Vec<(&(i32, i32), &Tile)>>();
+        let ground_tiles = ground_tiles
+            .iter()
+            .collect::<Vec<(&(i32, i32), &TileVariant)>>();
         let tile_pair = ground_tiles.choose(&mut rng).unwrap();
 
         *tile_pair.0

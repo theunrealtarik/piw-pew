@@ -1,19 +1,13 @@
 use std::rc::Rc;
 use std::time::Instant;
 
-use lib::net::GameNetworkPacket;
-use lib::types::{Health, RVector2, SharedAssets};
-use lib::{ENTITY_PLAYER_SIZE, WORLD_TILE_SIZE};
-
 use nalgebra::{Point2, Vector2};
 use raylib::prelude::*;
 use renet::DefaultChannel;
 
 use crate::configs;
-use crate::core::*;
-use crate::game::{Assets, GameNetwork};
-
-use super::{Invenotry, Weapon};
+use crate::prelude::*;
+use crate::types::*;
 
 #[allow(dead_code)]
 pub struct Player {
@@ -30,22 +24,22 @@ pub struct Player {
     pub ready: bool,
     pub reloading: bool,
     timers: Timer<Timers>,
-    assets: SharedAssets<Assets>,
+    assets: SharedAssets<GameAssets>,
 }
 
 impl Player {
-    pub fn new(name: String, assets: SharedAssets<Assets>) -> Self {
+    pub fn new(name: String, assets: SharedAssets<GameAssets>) -> Self {
         let radius = ENTITY_PLAYER_SIZE / 2.0;
         let rectangle = Rectangle::new(
-            configs::window::WINDOW_CENTER_X,
-            configs::window::WINDOW_CENTER_Y,
+            configs::WINDOW_CENTER_X,
+            configs::WINDOW_CENTER_Y,
             ENTITY_PLAYER_SIZE,
             ENTITY_PLAYER_SIZE,
         );
         let origin = Vector2::new(rectangle.width / 2.0, rectangle.height / 2.0);
         let offset = RVector2::new(
-            configs::window::WINDOW_CENTER_X - radius,
-            configs::window::WINDOW_CENTER_Y - radius,
+            configs::WINDOW_CENTER_X - radius,
+            configs::WINDOW_CENTER_Y - radius,
         );
 
         Self {
@@ -64,8 +58,8 @@ impl Player {
             ready: false,
             reloading: false,
             velocity: Vector2::new(
-                configs::player::PLAYER_INIT_VELOCITY_X,
-                configs::player::PLAYER_INIT_VELOCITY_Y,
+                configs::PLAYER_INIT_VELOCITY_X,
+                configs::PLAYER_INIT_VELOCITY_Y,
             ),
             direction: Vector2::new(1.0, 1.0),
             health: 100,
@@ -132,7 +126,9 @@ impl Player {
 }
 
 impl NetUpdateHandle for Player {
-    fn net_update(&mut self, handle: &RaylibHandle, network: &mut GameNetwork) {
+    type Network = GameNetwork;
+
+    fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network) {
         if !self.ready {
             return;
         }
@@ -140,7 +136,7 @@ impl NetUpdateHandle for Player {
         if self.health <= 0 {
             network.client.send_message(
                 DefaultChannel::ReliableUnordered,
-                GameNetworkPacket::NET_PLAYER_DIED(network.transport.client_id())
+                GameNetworkPacket::NET_PLAYER_DIED(network.transport.client_id().raw())
                     .serialized()
                     .unwrap(),
             );
@@ -180,7 +176,7 @@ impl NetUpdateHandle for Player {
         network.client.send_message(
             DefaultChannel::Unreliable,
             GameNetworkPacket::NET_PLAYER_ORIENTATION(
-                network.transport.client_id(),
+                network.transport.client_id().raw(),
                 self.orientation,
             )
             .serialized()
@@ -211,12 +207,7 @@ impl RenderHandle for Player {
             return;
         }
 
-        d.draw_rectangle_pro(
-            self.rectangle,
-            RVector2::zero(),
-            0.0,
-            configs::player::PLAYER_COLOR,
-        );
+        d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, configs::PLAYER_COLOR);
 
         self.inventory
             .render_weapon(d, &self.rectangle, self.orientation);
@@ -267,7 +258,7 @@ impl RenderHandle for Player {
 }
 
 impl AssetsHandle for Player {
-    type GameAssets = SharedAssets<Assets>;
+    type GameAssets = SharedAssets<GameAssets>;
 
     fn get_assets(&self) -> Self::GameAssets {
         Rc::clone(&self.assets)

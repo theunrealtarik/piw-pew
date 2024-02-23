@@ -1,18 +1,135 @@
 #![allow(non_camel_case_types)]
 
-use nalgebra::{Rotation2, Vector2};
 use raylib::prelude::*;
-use std::collections::HashMap;
 
-use lib::{
-    types::{Cash, Color, RVector2, SharedAssets, WeaponVariant},
-    {
-        WeaponStats, ENTITY_WEAPON_SIZE, WPN_STATS_AKA_69, WPN_STATS_DEAN_1911, WPN_STATS_PRRR,
-        WPN_STATS_SHOTPEW,
-    },
-};
+use lazy_static::lazy_static;
+use nalgebra::{Rotation2, Vector2};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, time::Duration};
+use strum_macros::VariantArray;
 
-use crate::game::{Assets, TEXTURE};
+use crate::configs::*;
+use crate::prelude::*;
+use crate::types::*;
+
+lazy_static! {
+    pub static ref WPN_STATS_AKA_69: WeaponStats = WeaponStats::new(
+        "AKA-69",
+        40,
+        WeaponAccuracy::Moderate,
+        Duration::from_millis(100),
+        Duration::from_millis(1500),
+        30,
+        4,
+        2700
+    );
+    pub static ref WPN_STATS_SHOTPEW: WeaponStats = WeaponStats::new(
+        "PUMP Shotpew",
+        25,
+        WeaponAccuracy::Low,
+        Duration::from_millis(300),
+        Duration::from_millis(2000),
+        5,
+        5,
+        2100
+    );
+    pub static ref WPN_STATS_DEAN_1911: WeaponStats = WeaponStats::new(
+        "DEAN 1911",
+        25,
+        WeaponAccuracy::High,
+        Duration::from_millis(1100),
+        Duration::from_millis(1100),
+        7,
+        4,
+        400
+    );
+    pub static ref WPN_STATS_PRRR: WeaponStats = WeaponStats::new(
+        "PRRR",
+        45,
+        WeaponAccuracy::Low,
+        Duration::from_millis(50),
+        Duration::from_millis(2500),
+        30,
+        4,
+        5200
+    );
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, Deserialize, Serialize, VariantArray)]
+pub enum WeaponVariant {
+    DEAN_1911,
+    AKA_69,
+    SHOTPEW,
+    PRRR,
+}
+
+#[derive(Debug, Clone)]
+pub enum WeaponAccuracy {
+    Low,
+    Moderate,
+    High,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct WeaponStats {
+    name: &'static str,
+    damage: u8,
+    accuracy: WeaponAccuracy,
+    reload_time: Duration,
+    fire_time: Duration,
+    pub mag_size: u8,
+    pub total_ammo: u8,
+    price: u32,
+}
+
+impl WeaponStats {
+    pub fn new(
+        name: &'static str,
+        damage: u8,
+        accuracy: WeaponAccuracy,
+        fire_time: Duration,
+        reload_time: Duration,
+        mag_size: u8,
+        mags: u8,
+        price: u32,
+    ) -> Self {
+        Self {
+            name,
+            damage,
+            accuracy,
+            reload_time,
+            fire_time,
+            mag_size,
+            total_ammo: mag_size * mags,
+            price,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn damage(&self) -> &u8 {
+        &self.damage
+    }
+
+    pub fn price(&self) -> &u32 {
+        &self.price
+    }
+
+    pub fn accuracy(&self) -> &WeaponAccuracy {
+        &self.accuracy
+    }
+
+    pub fn reload_time(&self) -> &Duration {
+        &self.reload_time
+    }
+
+    pub fn fire_time(&self) -> &Duration {
+        &self.fire_time
+    }
+}
 
 macro_rules! wpn_stats_mapping {
     ($($field:ident),*) => {
@@ -41,7 +158,7 @@ wpn_stats_mapping!(
 #[derive(Debug)]
 pub struct Weapon {
     pub variant: WeaponVariant,
-    pub texture: TEXTURE,
+    pub texture: LTexture,
     pub muzzle: (f32, f32),
     pub stats: &'static WeaponStats,
     pub curr_total_ammo: u8,
@@ -57,7 +174,7 @@ impl Weapon {
                 let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
                 Weapon {
                     variant,
-                    texture: TEXTURE::WPN_DEAN,
+                    texture: LTexture::WPN_DEAN,
                     muzzle: (0.942, 0.685),
                     stats,
                     curr_total_ammo: stats.total_ammo,
@@ -68,7 +185,7 @@ impl Weapon {
                 let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
                 Weapon {
                     variant,
-                    texture: TEXTURE::WPN_AKA,
+                    texture: LTexture::WPN_AKA,
                     muzzle: (0.988, 0.173),
                     stats: WeaponStatsMapping::WPN_STATS_AKA_69.get(),
                     curr_total_ammo: stats.total_ammo,
@@ -79,7 +196,7 @@ impl Weapon {
                 let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
                 Weapon {
                     variant,
-                    texture: TEXTURE::WPN_SHOTPEW,
+                    texture: LTexture::WPN_SHOTPEW,
                     muzzle: (0.988, 0.046),
                     stats: WeaponStatsMapping::WPN_STATS_SHOTPEW.get(),
                     curr_total_ammo: stats.total_ammo,
@@ -90,7 +207,7 @@ impl Weapon {
                 let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
                 Weapon {
                     variant,
-                    texture: TEXTURE::WPN_PRRR,
+                    texture: LTexture::WPN_PRRR,
                     muzzle: (0.988, 0.372),
                     stats: WeaponStatsMapping::WPN_STATS_PRRR.get(),
                     curr_total_ammo: stats.total_ammo,
@@ -163,11 +280,11 @@ pub struct Invenotry {
     pub cash: Cash,
     pub weapons: HashMap<WeaponVariant, Weapon>,
     selected_weapon: Option<WeaponVariant>,
-    assets: SharedAssets<Assets>,
+    assets: SharedAssets<GameAssets>,
 }
 
 impl Invenotry {
-    pub fn new(assets: SharedAssets<Assets>) -> Self {
+    pub fn new(assets: SharedAssets<GameAssets>) -> Self {
         Self {
             cash: 0,
             weapons: HashMap::new(),

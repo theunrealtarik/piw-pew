@@ -7,6 +7,7 @@ edition = "2021"
 name = "client"
 path = "./src/client/main.rs"
 
+
 [[bin]]
 name = "server"
 path = "./src/server/main.rs"
@@ -15,12 +16,16 @@ path = "./src/server/main.rs"
 name = "lib"
 path = "./src/lib/mod.rs"
 
+[features]
+client = []
+server = []
+
 [dependencies]
 nalgebra = { version = "0.32.3", features = ["serde-serialize"] }
 raylib = { version = "3.7" }
 log = "0.4"
 env_logger = "^0.11.2"
-renet = "0.0.14"
+renet = "0.0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0.196"
 rmp-serde = "1.1.2"
