@@ -37,7 +37,7 @@ lazy_static! {
         "DEAN 1911",
         25,
         WeaponAccuracy::High,
-        Duration::from_millis(1100),
+        Duration::from_millis(300),
         Duration::from_millis(1100),
         7,
         4,

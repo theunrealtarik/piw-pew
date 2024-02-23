@@ -70,6 +70,7 @@ fn main() {
             .unwrap();
 
         if network.client.is_connected() {
+            game.update(&handle);
             game.net_update(&handle, &mut network);
         }
 
