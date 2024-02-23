@@ -28,7 +28,6 @@ extern crate serde;
 extern crate serde_derive;
 
 use std::hash::Hash;
-use std::time::Instant;
 use std::{
     collections::HashMap,
     fs::File,
@@ -131,6 +130,7 @@ impl NetUpdateHandle for Game {
                             local_player.orientation = data.orientation;
                             local_player.rectangle.x = pos_x;
                             local_player.rectangle.y = pos_y;
+                            local_player.inventory.cash = data.cash;
                             local_player.ready = true;
 
                             local_player.inventory.select(data.weapon);
@@ -754,7 +754,7 @@ impl UserInterfaceHandle for Game {
             );
         }
 
-        if is_alive {
+        if local_player.ready && is_alive {
             // health bar
             d.draw_rectangle_rounded(
                 Rectangle::new(
@@ -799,10 +799,10 @@ impl UserInterfaceHandle for Game {
                 - configs::window::WINDOW_PADDING as f32;
 
             // wapon
-            if let Some(wpn) = local_player.inventory.selected_weapon() {
+            if let Some(selected_wpn) = local_player.inventory.selected_weapon() {
                 #[cfg(debug_assertions)]
                 {
-                    let data = format!("{:#?}", wpn.stats);
+                    let data = format!("{:#?}", local_player.inventory.weapons.len());
                     d.draw_text_ex(
                         &poppins,
                         &data,
@@ -819,8 +819,8 @@ impl UserInterfaceHandle for Game {
                         &poppins,
                         &local_player.reloading.to_string(),
                         RVector2::new(
-                            configs::window::WINDOW_PADDING as f32 * 3.0,
-                            configs::window::WINDOW_PADDING as f32 * 3.0,
+                            configs::window::WINDOW_PADDING as f32 * 8.0,
+                            configs::window::WINDOW_PADDING as f32 * 2.0,
                         ),
                         24.0,
                         1.0,
@@ -830,11 +830,14 @@ impl UserInterfaceHandle for Game {
 
                 let font_size = 32.0;
                 let mut color = Color::WHITE;
-                let mut text = format!("{}/{}", wpn.curr_mag_ammo, wpn.curr_total_ammo);
+                let mut text = format!(
+                    "{}/{}",
+                    selected_wpn.curr_mag_ammo, selected_wpn.curr_total_ammo
+                );
 
                 let text_size = text::measure_text_ex(&poppins_black, &text, 32.0, 1.0);
 
-                if wpn.is_empty() {
+                if selected_wpn.is_empty() {
                     text = String::from("RELOAD!");
                     color = Color::RED;
                 }
@@ -855,65 +858,65 @@ impl UserInterfaceHandle for Game {
                     1.0,
                     color,
                 );
-            }
 
-            // waspons ui
-            let lock_icon = assets.textures.get(&TEXTURE::UI_LOCK).unwrap();
-            for (index, wpn_variant) in WeaponVariant::VARIANTS.iter().enumerate() {
-                let texture = match wpn_variant {
-                    WeaponVariant::DEAN_1911 => assets.textures.get(&TEXTURE::UI_DEAN_1911),
-                    WeaponVariant::AKA_69 => assets.textures.get(&TEXTURE::UI_AKA_69),
-                    WeaponVariant::SHOTPEW => assets.textures.get(&TEXTURE::UI_SHOTPEW),
-                    WeaponVariant::PRRR => assets.textures.get(&TEXTURE::UI_PRRR),
-                };
+                // waspons ui
+                let lock_icon = assets.textures.get(&TEXTURE::UI_LOCK).unwrap();
+                for (index, wpn_variant) in WeaponVariant::VARIANTS.iter().enumerate() {
+                    let texture = match wpn_variant {
+                        WeaponVariant::DEAN_1911 => assets.textures.get(&TEXTURE::UI_DEAN_1911),
+                        WeaponVariant::AKA_69 => assets.textures.get(&TEXTURE::UI_AKA_69),
+                        WeaponVariant::SHOTPEW => assets.textures.get(&TEXTURE::UI_SHOTPEW),
+                        WeaponVariant::PRRR => assets.textures.get(&TEXTURE::UI_PRRR),
+                    };
 
-                let wpn = Weapon::new(*wpn_variant);
-                let wpn = local_player.inventory.get(wpn_variant).unwrap_or(&wpn);
+                    let other_wpn = Weapon::new(*wpn_variant);
 
-                if let Some(buffer) = texture {
-                    let dest_rect = Rectangle::new(
-                        configs::window::WINDOW_PADDING as f32 + (index * 60) as f32,
-                        bl_window_y - weapon_icon_length,
-                        weapon_icon_length,
-                        weapon_icon_length,
-                    );
+                    if let Some(buffer) = texture {
+                        let dest_rect = Rectangle::new(
+                            configs::window::WINDOW_PADDING as f32 + (index * 60) as f32,
+                            bl_window_y - weapon_icon_length,
+                            weapon_icon_length,
+                            weapon_icon_length,
+                        );
 
-                    d.draw_texture_pro(
-                        buffer,
-                        Rectangle::new(0.0, 0.0, buffer.width as f32, buffer.height as f32),
-                        dest_rect,
-                        RVector2::zero(),
-                        0.0,
-                        if let Some(wpn) = local_player.inventory.get(wpn_variant) {
-                            if wpn.variant == *wpn_variant {
-                                Color::WHITE
-                            } else {
-                                Color::GRAY
-                            }
-                        } else {
-                            Color::BLACK
-                        },
-                    );
+                        let affordable =
+                            local_player.inventory.cash >= *other_wpn.stats.price() as i64;
 
-                    if local_player.inventory.cash < *wpn.stats.price() as i64
-                        && !local_player.inventory.has(wpn_variant)
-                    {
                         d.draw_texture_pro(
-                            lock_icon,
-                            Rectangle::new(
-                                0.0,
-                                0.0,
-                                lock_icon.width as f32,
-                                lock_icon.height as f32,
-                            ),
+                            buffer,
+                            Rectangle::new(0.0, 0.0, buffer.width as f32, buffer.height as f32),
                             dest_rect,
                             RVector2::zero(),
                             0.0,
-                            Color::WHITE,
-                        )
-                    }
-                };
-            }
+                            if selected_wpn.variant == other_wpn.variant {
+                                Color::WHITE
+                            } else {
+                                if !affordable {
+                                    Color::BLACK
+                                } else {
+                                    Color::GRAY
+                                }
+                            },
+                        );
+
+                        if !local_player.inventory.has(&other_wpn.variant) {
+                            d.draw_texture_pro(
+                                lock_icon,
+                                Rectangle::new(
+                                    0.0,
+                                    0.0,
+                                    lock_icon.width as f32,
+                                    lock_icon.height as f32,
+                                ),
+                                dest_rect,
+                                RVector2::zero(),
+                                0.0,
+                                Color::WHITE,
+                            )
+                        }
+                    };
+                }
+            };
         }
     }
 }

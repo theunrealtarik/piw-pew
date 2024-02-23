@@ -73,9 +73,13 @@ impl<T: Copy + Eq + std::hash::Hash> Timer<T> {
                 }
             }
             None => {
-                self.value.insert(id, Instant::now());
+                self.add(id, Instant::now());
                 true
             }
         }
+    }
+
+    pub fn add(&mut self, id: T, instant: Instant) {
+        self.value.insert(id, Instant::now());
     }
 }

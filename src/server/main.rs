@@ -348,7 +348,7 @@ impl Client {
                 orientation: 0.0,
                 health: 100,
                 weapon: WeaponVariant::DEAN_1911,
-                cash: 200,
+                cash: 2200,
             },
         }
     }

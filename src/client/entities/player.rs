@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::time::Instant;
 
 use lib::packets::GameNetworkPacket;
 use lib::types::{Health, RVector2, SharedAssets};
@@ -188,7 +189,8 @@ impl NetUpdateHandle for Player {
 
         if let Some(wpn) = self.inventory.selected_weapon_mut() {
             if handle.is_key_pressed(KeyboardKey::KEY_R) {
-                self.reloading = true
+                self.reloading = true;
+                self.timers.add(Timers::PlayerReloading, Instant::now());
             }
 
             if self.reloading
