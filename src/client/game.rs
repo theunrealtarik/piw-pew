@@ -13,6 +13,7 @@ use lib::{
     ENTITY_PLAYER_MAX_HEALTH, ENTITY_PROJECTILE_RADIUS, ENTITY_PROJECTILE_SPEED, WORLD_TILE_SIZE,
 };
 
+use raylib::ffi::PFNGLLOGICOPPROC;
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
@@ -749,6 +750,25 @@ impl UserInterfaceHandle for Game {
         let poppins_black = assets.fonts.get(&FONT::FNT_POPPINS_BLACK).unwrap();
         let roundness = 0.2;
 
+        #[cfg(debug_assertions)]
+        {
+            d.draw_line(
+                0,
+                configs::window::WINDOW_CENTER_Y as i32,
+                configs::window::WINDOW_WIDTH,
+                configs::window::WINDOW_CENTER_Y as i32,
+                Color::BLUE,
+            );
+
+            d.draw_line(
+                configs::window::WINDOW_CENTER_X as i32,
+                0,
+                configs::window::WINDOW_CENTER_X as i32,
+                configs::window::WINDOW_HEIGHT,
+                Color::BLUE,
+            );
+        }
+
         if is_alive {
             // health bar
             d.draw_rectangle_rounded(
@@ -784,10 +804,14 @@ impl UserInterfaceHandle for Game {
                     configs::window::WINDOW_PADDING as f32,
                     configs::window::WINDOW_PADDING as f32 * 2.0,
                 ),
-                24.0,
+                32.0,
                 1.0,
                 Color::WHITE,
             );
+
+            let weapon_icon_length = 50.0;
+            let bl_window_y = configs::window::WINDOW_BOTTOM_LEFT_Y as f32
+                - configs::window::WINDOW_PADDING as f32;
 
             // wapon
             if let Some(wpn) = local_player.inventory.selected_weapon() {
@@ -801,25 +825,9 @@ impl UserInterfaceHandle for Game {
                             configs::window::WINDOW_PADDING as f32,
                             configs::window::WINDOW_PADDING as f32 * 3.0,
                         ),
-                        24.0,
+                        22.0,
                         1.0,
                         Color::RED,
-                    );
-
-                    d.draw_line(
-                        0,
-                        configs::window::WINDOW_CENTER_Y as i32,
-                        configs::window::WINDOW_WIDTH,
-                        configs::window::WINDOW_CENTER_Y as i32,
-                        Color::BLUE,
-                    );
-
-                    d.draw_line(
-                        configs::window::WINDOW_CENTER_X as i32,
-                        0,
-                        configs::window::WINDOW_CENTER_X as i32,
-                        configs::window::WINDOW_HEIGHT,
-                        Color::BLUE,
                     );
                 }
 
@@ -829,12 +837,14 @@ impl UserInterfaceHandle for Game {
                     wpn.stats.curr_total_ammo - wpn.stats.curr_mag_size
                 );
 
+                let text_size = text::measure_text_ex(&poppins_black, &ammo, 32.0, 1.0);
+
                 d.draw_text_ex(
-                    &poppins,
+                    &poppins_black,
                     &ammo,
                     RVector2::new(
                         configs::window::WINDOW_PADDING as f32,
-                        configs::window::WINDOW_PADDING as f32 * 3.0,
+                        bl_window_y - weapon_icon_length - text_size.y,
                     ),
                     24.0,
                     1.0,
@@ -845,7 +855,6 @@ impl UserInterfaceHandle for Game {
             // waspons ui
             let lock_icon = assets.textures.get(&TEXTURE::UI_LOCK).unwrap();
             for (index, wpn_variant) in WeaponVariant::VARIANTS.iter().enumerate() {
-                let weapon_icon_length = 50.0;
                 let texture = match wpn_variant {
                     WeaponVariant::DEAN_1911 => assets.textures.get(&TEXTURE::UI_DEAN_1911),
                     WeaponVariant::AKA_69 => assets.textures.get(&TEXTURE::UI_AKA_69),
@@ -857,12 +866,8 @@ impl UserInterfaceHandle for Game {
 
                 if let Some(buffer) = texture {
                     let dest_rect = Rectangle::new(
-                        configs::window::WINDOW_BOTTOM_LEFT_X as f32
-                            + configs::window::WINDOW_PADDING as f32
-                            + (index * 60) as f32,
-                        configs::window::WINDOW_BOTTOM_LEFT_Y as f32
-                            - configs::window::WINDOW_PADDING as f32
-                            - weapon_icon_length,
+                        configs::window::WINDOW_PADDING as f32 + (index * 60) as f32,
+                        bl_window_y - weapon_icon_length,
                         weapon_icon_length,
                         weapon_icon_length,
                     );
