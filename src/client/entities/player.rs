@@ -122,6 +122,7 @@ impl Player {
                     origin.x + self.rectangle.width / 2.0 + wpn_w * wpn.muzzle.0,
                     origin.y + if flip_y { 1.0 } else { -1.0 } * (wpn_h / 2.0) * wpn.muzzle.1,
                 );
+
                 let coords = Rotation2::new(self.orientation) * (muzzle - origin) + origin;
                 f(wpn, coords, self.orientation);
             }

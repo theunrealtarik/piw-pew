@@ -260,10 +260,10 @@ impl NetUpdateHandle for Game {
             local_player.rectangle.height,
         ) {
             local_player.on_shoot(handle, |wpn, muzzle, theta| {
-                if self
-                    .timers
-                    .after(Timers::WeaponShot(wpn.stats.fire_time), wpn.stats.fire_time)
-                {
+                if self.timers.after(
+                    Timers::WeaponShot(*wpn.stats.fire_time()),
+                    *wpn.stats.fire_time(),
+                ) {
                     let p = Projectile::new(
                         u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap()),
                         (muzzle.x, muzzle.y),
