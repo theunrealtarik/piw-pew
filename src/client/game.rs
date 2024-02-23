@@ -2,11 +2,11 @@ use crate::configs;
 use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UserInterfaceHandle};
 use crate::entities::{Enemy, GameWorldTile, Player, Projectile, Weapon};
 
-use lib::packets::ProjectileData;
+use lib::net::ProjectileData;
 use lib::types::{Health, RawProjectileId, SharedAssets, WeaponVariant};
 use lib::utils::POINT_OFFSETS;
 use lib::{
-    packets::GameNetworkPacket,
+    net::GameNetworkPacket,
     types::{RVector2, Tile},
 };
 use lib::{

@@ -14,8 +14,8 @@ use rmps::Serializer;
 use serde::{Deserialize, Serialize};
 
 use lib::logging::Logger;
+use lib::net::{GameNetworkPacket, PlayerData, ProjectileData};
 use lib::net::{DELTA_TIME, PROTOCOL_ID, SERVER_MAX_CLIENTS};
-use lib::packets::{GameNetworkPacket, PlayerData, ProjectileData};
 use lib::types::{RVector2, RawProjectileId, Tile, Tiles, WeaponVariant};
 
 use renet::{

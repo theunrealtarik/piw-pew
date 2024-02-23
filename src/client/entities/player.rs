@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::time::Instant;
 
-use lib::packets::GameNetworkPacket;
+use lib::net::GameNetworkPacket;
 use lib::types::{Health, RVector2, SharedAssets};
 use lib::{ENTITY_PLAYER_SIZE, WORLD_TILE_SIZE};
 

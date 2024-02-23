@@ -1,5 +1,8 @@
 #![allow(non_camel_case_types)]
 
+use std::time::Duration;
+
+use lazy_static::lazy_static;
 use types::Health;
 
 pub static WORLD_TILE_SIZE: f32 = 50.0;
@@ -9,12 +12,115 @@ pub static ENTITY_PLAYER_MAX_HEALTH: Health = 100;
 pub static ENTITY_PROJECTILE_SPEED: u32 = 5; // speed is the abs of velocity, it's not velocity (death threat for every unity tutorial).
 pub static ENTITY_PROJECTILE_RADIUS: f32 = 2.0;
 
-pub mod net {
-    use std::time::Duration;
+lazy_static! {
+    pub static ref WPN_STATS_AKA_69: WeaponStats = WeaponStats::new(
+        "AKA-69",
+        40,
+        WeaponAccuracy::Moderate,
+        Duration::from_millis(100),
+        Duration::from_millis(1500),
+        30,
+        4,
+        2700
+    );
+    pub static ref WPN_STATS_SHOTPEW: WeaponStats = WeaponStats::new(
+        "PUMP Shotpew",
+        25,
+        WeaponAccuracy::Low,
+        Duration::from_millis(300),
+        Duration::from_millis(2000),
+        5,
+        5,
+        2100
+    );
+    pub static ref WPN_STATS_DEAN_1911: WeaponStats = WeaponStats::new(
+        "DEAN 1911",
+        25,
+        WeaponAccuracy::High,
+        Duration::from_millis(1100),
+        Duration::from_millis(1100),
+        7,
+        4,
+        400
+    );
+    pub static ref WPN_STATS_PRRR: WeaponStats = WeaponStats::new(
+        "PRRR",
+        45,
+        WeaponAccuracy::Low,
+        Duration::from_millis(50),
+        Duration::from_millis(2500),
+        30,
+        4,
+        5200
+    );
+}
 
-    pub const SERVER_MAX_CLIENTS: usize = 12;
-    pub const PROTOCOL_ID: u64 = 69;
-    pub const DELTA_TIME: Duration = Duration::from_millis(16);
+#[derive(Debug, Clone)]
+pub enum WeaponAccuracy {
+    Low,
+    Moderate,
+    High,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct WeaponStats {
+    name: &'static str,
+    damage: u8,
+    accuracy: WeaponAccuracy,
+    reload_time: Duration,
+    fire_time: Duration,
+    pub mag_size: u8,
+    pub total_ammo: u8,
+    price: u32,
+}
+
+impl WeaponStats {
+    pub fn new(
+        name: &'static str,
+        damage: u8,
+        accuracy: WeaponAccuracy,
+        fire_time: Duration,
+        reload_time: Duration,
+        mag_size: u8,
+        mags: u8,
+        price: u32,
+    ) -> Self {
+        Self {
+            name,
+            damage,
+            accuracy,
+            reload_time,
+            fire_time,
+            mag_size,
+            total_ammo: mag_size * mags,
+            price,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn damage(&self) -> &u8 {
+        &self.damage
+    }
+
+    pub fn price(&self) -> &u32 {
+        &self.price
+    }
+
+    pub fn accuracy(&self) -> &WeaponAccuracy {
+        &self.accuracy
+    }
+
+    pub fn reload_time(&self) -> &Duration {
+        &self.reload_time
+    }
+
+    pub fn fire_time(&self) -> &Duration {
+        &self.fire_time
+    }
 }
 
 pub mod logging {
@@ -31,7 +137,7 @@ pub mod logging {
     }
 }
 
-pub mod packets {
+pub mod net {
     extern crate rmp_serde as rmps;
 
     use rmps::Serializer;
@@ -39,7 +145,11 @@ pub mod packets {
     use std::collections::HashMap;
 
     use crate::types::{Cash, Damage, Health, RawClientId, RawProjectileId, WeaponVariant};
+    use std::time::Duration;
 
+    pub const SERVER_MAX_CLIENTS: usize = 12;
+    pub const PROTOCOL_ID: u64 = 69;
+    pub const DELTA_TIME: Duration = Duration::from_millis(16);
     #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
     pub struct PlayerData {
         // raw id
