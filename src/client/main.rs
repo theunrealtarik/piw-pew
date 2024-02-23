@@ -10,9 +10,7 @@ use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
 
 use lib::prelude::*;
 use lib::types::*;
-use lib::{configs::*, utils};
-
-static INITIAL_PAYLOAD_SIZE: usize = 255;
+use lib::utils;
 
 fn main() {
     env_logger::init_from_env(Logger::env());
@@ -112,6 +110,12 @@ impl Game {
             player: Player::new(settings.username, Rc::clone(&assets)),
             world: GameWorld::new(),
         }
+    }
+}
+
+impl UpdateHandle for Game {
+    fn update(&mut self, handle: &RaylibHandle) {
+        self.player.update(handle);
     }
 }
 
@@ -610,7 +614,6 @@ impl GameWorld {
 impl UserInterfaceHandle for Game {
     fn display(&mut self, d: &mut RaylibDrawHandle) {
         let local_player = &self.player;
-        let is_alive = local_player.health > 0;
 
         let assets = self.assets.borrow();
         let poppins = assets.fonts.get(&LFont::FNT_POPPINS).unwrap();
@@ -636,7 +639,7 @@ impl UserInterfaceHandle for Game {
             );
         }
 
-        if local_player.ready && is_alive {
+        if local_player.ready && local_player.is_alive() {
             // health bar
             d.draw_rectangle_rounded(
                 Rectangle::new(WINDOW_PADDING as f32, WINDOW_PADDING as f32, 200.0, 20.0),

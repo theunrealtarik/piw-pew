@@ -2,6 +2,8 @@ use raylib::color::Color;
 
 use crate::types::Health;
 
+pub static INITIAL_PAYLOAD_SIZE: usize = 255;
+
 pub static WORLD_TILE_SIZE: f32 = 50.0;
 pub static ENTITY_PLAYER_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
 pub static ENTITY_WEAPON_SIZE: f32 = ENTITY_PLAYER_SIZE * 0.0018;

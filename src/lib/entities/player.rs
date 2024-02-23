@@ -123,24 +123,15 @@ impl Player {
             }
         }
     }
+
+    pub fn is_alive(&self) -> bool {
+        self.health > 0
+    }
 }
 
-impl NetUpdateHandle for Player {
-    type Network = GameNetwork;
-
-    fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network) {
-        if !self.ready {
-            return;
-        }
-
-        if self.health <= 0 {
-            network.client.send_message(
-                DefaultChannel::ReliableUnordered,
-                GameNetworkPacket::NET_PLAYER_DIED(network.transport.client_id().raw())
-                    .serialized()
-                    .unwrap(),
-            );
-
+impl UpdateHandle for Player {
+    fn update(&mut self, handle: &RaylibHandle) {
+        if !self.is_alive() || !self.ready {
             return;
         }
 
@@ -172,6 +163,27 @@ impl NetUpdateHandle for Player {
         let mouse_y = mouse_pos.y as f32 - (player_pos.y + ENTITY_PLAYER_SIZE / 2.0);
 
         self.orientation = mouse_y.atan2(mouse_x);
+    }
+}
+
+impl NetUpdateHandle for Player {
+    type Network = GameNetwork;
+
+    fn net_update(&mut self, handle: &RaylibHandle, network: &mut Self::Network) {
+        if !self.ready {
+            return;
+        }
+
+        if self.health <= 0 {
+            network.client.send_message(
+                DefaultChannel::ReliableUnordered,
+                GameNetworkPacket::NET_PLAYER_DIED(network.transport.client_id().raw())
+                    .serialized()
+                    .unwrap(),
+            );
+
+            return;
+        }
 
         network.client.send_message(
             DefaultChannel::Unreliable,
