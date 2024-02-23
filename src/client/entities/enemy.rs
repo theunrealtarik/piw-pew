@@ -57,7 +57,7 @@ impl RenderHandle for Enemy {
         let radius = self.rectangle.width / 2.0;
         let origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
         self.inventory
-            .render_weapon(d, origin, radius, self.orientation);
+            .render_weapon(d, &self.rectangle, self.orientation);
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::configs;
 use crate::core::{AssetsHandle, NetUpdateHandle, RenderHandle, UserInterfaceHandle};
-use crate::entities::{Enemy, GameWorldTile, Invenotry, Player, Projectile, Weapon};
+use crate::entities::{Enemy, GameWorldTile, Player, Projectile, Weapon};
 
 use lib::packets::ProjectileData;
 use lib::types::{Health, RawProjectileId, SharedAssets, WeaponVariant};
@@ -13,7 +13,6 @@ use lib::{
     ENTITY_PLAYER_MAX_HEALTH, ENTITY_PROJECTILE_RADIUS, ENTITY_PROJECTILE_SPEED, WORLD_TILE_SIZE,
 };
 
-use raylib::ffi::PFNGLLOGICOPPROC;
 use raylib::{
     core::{text::Font, texture::Texture2D},
     prelude::*,
@@ -43,18 +42,10 @@ use strum::VariantArray;
 use strum_macros::{Display, EnumIter, VariantArray};
 use uuid::Uuid;
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Timers {
-    WeaponShot(Duration),
-    PlayerRepsawn,
-}
-
 pub struct Game {
     pub assets: SharedAssets<Assets>,
     pub player: Player,
     pub world: GameWorld,
-    timers: GameTimer<Timers>,
 }
 
 impl Game {
@@ -63,7 +54,6 @@ impl Game {
             assets: Rc::clone(&assets),
             player: Player::new(settings.username, Rc::clone(&assets)),
             world: GameWorld::new(),
-            timers: GameTimer::default(),
         }
     }
 }
@@ -260,32 +250,27 @@ impl NetUpdateHandle for Game {
             local_player.rectangle.height,
         ) {
             local_player.on_shoot(handle, |wpn, muzzle, theta| {
-                if self.timers.after(
-                    Timers::WeaponShot(*wpn.stats.fire_time()),
-                    *wpn.stats.fire_time(),
-                ) {
-                    let p = Projectile::new(
-                        u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap()),
-                        (muzzle.x, muzzle.y),
-                        ENTITY_PROJECTILE_SPEED,
-                        theta,
-                    );
+                let p = Projectile::new(
+                    u64::from_le_bytes(Uuid::new_v4().as_bytes()[..8].try_into().unwrap()),
+                    (muzzle.x, muzzle.y),
+                    ENTITY_PROJECTILE_SPEED,
+                    theta,
+                );
 
-                    network.client.send_message(
-                        DefaultChannel::ReliableOrdered,
-                        GameNetworkPacket::NET_PROJECTILE_CREATE(ProjectileData {
-                            id: p.id,
-                            position: (p.position.x, p.position.y),
-                            grid: (p.grid.x, p.grid.y),
-                            velocity: (p.velocity.x, p.velocity.y),
-                            orientation: p.orientation,
-                            shooter: network.transport.client_id(),
-                            damage: *wpn.stats.damage(),
-                        })
-                        .serialized()
-                        .unwrap(),
-                    );
-                }
+                network.client.send_message(
+                    DefaultChannel::ReliableOrdered,
+                    GameNetworkPacket::NET_PROJECTILE_CREATE(ProjectileData {
+                        id: p.id,
+                        position: (p.position.x, p.position.y),
+                        grid: (p.grid.x, p.grid.y),
+                        velocity: (p.velocity.x, p.velocity.y),
+                        orientation: p.orientation,
+                        shooter: network.transport.client_id(),
+                        damage: *wpn.stats.damage(),
+                    })
+                    .serialized()
+                    .unwrap(),
+                );
             });
 
             let rectangle = Rectangle::new(
@@ -829,26 +814,46 @@ impl UserInterfaceHandle for Game {
                         1.0,
                         Color::RED,
                     );
+
+                    d.draw_text_ex(
+                        &poppins,
+                        &local_player.reloading.to_string(),
+                        RVector2::new(
+                            configs::window::WINDOW_PADDING as f32 * 3.0,
+                            configs::window::WINDOW_PADDING as f32 * 3.0,
+                        ),
+                        24.0,
+                        1.0,
+                        Color::RED,
+                    )
                 }
 
-                let ammo = format!(
-                    "{}/{}",
-                    wpn.stats.curr_mag_size,
-                    wpn.stats.curr_total_ammo - wpn.stats.curr_mag_size
-                );
+                let font_size = 32.0;
+                let mut color = Color::WHITE;
+                let mut text = format!("{}/{}", wpn.curr_mag_ammo, wpn.curr_total_ammo);
 
-                let text_size = text::measure_text_ex(&poppins_black, &ammo, 32.0, 1.0);
+                let text_size = text::measure_text_ex(&poppins_black, &text, 32.0, 1.0);
+
+                if wpn.is_empty() {
+                    text = String::from("RELOAD!");
+                    color = Color::RED;
+                }
+
+                if local_player.reloading {
+                    text = String::from("Reloading...");
+                    color = Color::GRAY;
+                }
 
                 d.draw_text_ex(
                     &poppins_black,
-                    &ammo,
+                    &text,
                     RVector2::new(
                         configs::window::WINDOW_PADDING as f32,
-                        bl_window_y - weapon_icon_length - text_size.y,
+                        bl_window_y - weapon_icon_length - text_size.y * 1.1,
                     ),
-                    24.0,
+                    font_size,
                     1.0,
-                    Color::WHITE,
+                    color,
                 );
             }
 
@@ -863,6 +868,7 @@ impl UserInterfaceHandle for Game {
                 };
 
                 let wpn = Weapon::new(*wpn_variant);
+                let wpn = local_player.inventory.get(wpn_variant).unwrap_or(&wpn);
 
                 if let Some(buffer) = texture {
                     let dest_rect = Rectangle::new(
@@ -885,7 +891,7 @@ impl UserInterfaceHandle for Game {
                                 Color::GRAY
                             }
                         } else {
-                            Color::GRAY
+                            Color::BLACK
                         },
                     );
 
@@ -908,52 +914,6 @@ impl UserInterfaceHandle for Game {
                     }
                 };
             }
-        }
-    }
-}
-
-struct GameTimer<T: Copy + PartialEq + Eq + std::hash::Hash> {
-    value: HashMap<T, Timer>,
-}
-
-impl<T: Copy + PartialEq + Eq + std::hash::Hash> Default for GameTimer<T> {
-    fn default() -> Self {
-        Self {
-            value: HashMap::new(),
-        }
-    }
-}
-
-impl<T: Copy + Eq + std::hash::Hash> GameTimer<T> {
-    fn after(&mut self, id: T, duration: Duration) -> bool {
-        match self.value.get_mut(&id) {
-            Some(timer) => {
-                let now = Instant::now();
-                let dt = now - timer.instant;
-
-                if dt >= duration {
-                    timer.instant = Instant::now();
-                    true
-                } else {
-                    false
-                }
-            }
-            None => {
-                self.value.insert(id, Timer::new());
-                true
-            }
-        }
-    }
-}
-
-struct Timer {
-    instant: Instant,
-}
-
-impl Timer {
-    fn new() -> Self {
-        Self {
-            instant: Instant::now(),
         }
     }
 }

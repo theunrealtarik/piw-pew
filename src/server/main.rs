@@ -298,7 +298,7 @@ fn main() {
                 }
             }
 
-            for (pid, player) in &mut state.players {
+            for (_, player) in &mut state.players {
                 let (x, y) = (player.data.position.0, player.data.position.1);
                 let prect = Rectangle::new(x, y, ENTITY_PLAYER_SIZE, ENTITY_PLAYER_SIZE);
 

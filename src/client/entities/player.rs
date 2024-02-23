@@ -2,13 +2,13 @@ use std::rc::Rc;
 
 use lib::packets::GameNetworkPacket;
 use lib::types::{Health, RVector2, SharedAssets};
-use lib::{ENTITY_PLAYER_SIZE, ENTITY_WEAPON_SIZE, WORLD_TILE_SIZE};
+use lib::{ENTITY_PLAYER_SIZE, WORLD_TILE_SIZE};
 
-use nalgebra::{Point2, Rotation2, Vector2};
+use nalgebra::{Point2, Vector2};
 use raylib::prelude::*;
 use renet::DefaultChannel;
 
-use crate::configs::{self, *};
+use crate::configs;
 use crate::core::*;
 use crate::game::{Assets, GameNetwork};
 
@@ -27,6 +27,8 @@ pub struct Player {
     pub direction: Vector2<f32>,
     pub health: Health,
     pub ready: bool,
+    pub reloading: bool,
+    timers: Timer<Timers>,
     assets: SharedAssets<Assets>,
 }
 
@@ -59,12 +61,14 @@ impl Player {
                 target: RVector2::new(rectangle.x, rectangle.y),
             },
             ready: false,
+            reloading: false,
             velocity: Vector2::new(
-                player::PLAYER_INIT_VELOCITY_X,
-                player::PLAYER_INIT_VELOCITY_Y,
+                configs::player::PLAYER_INIT_VELOCITY_X,
+                configs::player::PLAYER_INIT_VELOCITY_Y,
             ),
             direction: Vector2::new(1.0, 1.0),
             health: 100,
+            timers: Timer::default(),
             assets,
         }
     }
@@ -101,30 +105,26 @@ impl Player {
         let assets = self.assets.borrow();
 
         if handle.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-            if let Some(wpn) = self.inventory.selected_weapon() {
-                let buffer = assets.textures.get(&wpn.texture).unwrap();
+            if let Some(wpn) = self.inventory.selected_weapon_mut() {
+                if !self.reloading
+                    && self.timers.after(
+                        Timers::WeaponShot(*wpn.stats.fire_time()),
+                        *wpn.stats.fire_time(),
+                    )
+                {
+                    let buffer = assets.textures.get(&wpn.texture).unwrap();
+                    let muzzle = wpn.muzzle(buffer, &self.rectangle, self.orientation);
 
-                let origin = self.origin + Vector2::new(self.rectangle.x, self.rectangle.y);
-                let theta = self.orientation.to_degrees();
+                    let amount = wpn
+                        .curr_mag_ammo
+                        .checked_sub(1)
+                        .unwrap_or(wpn.curr_mag_ammo);
+                    wpn.curr_mag_ammo = amount;
 
-                let flip_y = if theta.abs() <= 180.0 && theta.abs() > 90.0 {
-                    true
-                } else {
-                    false
-                };
-
-                let (wpn_w, wpn_h) = (
-                    buffer.width as f32 * ENTITY_WEAPON_SIZE,
-                    buffer.height as f32 * ENTITY_WEAPON_SIZE,
-                );
-
-                let muzzle = Vector2::new(
-                    origin.x + self.rectangle.width / 2.0 + wpn_w * wpn.muzzle.0,
-                    origin.y + if flip_y { 1.0 } else { -1.0 } * (wpn_h / 2.0) * wpn.muzzle.1,
-                );
-
-                let coords = Rotation2::new(self.orientation) * (muzzle - origin) + origin;
-                f(wpn, coords, self.orientation);
+                    if wpn.curr_mag_ammo != 0 && wpn.curr_mag_ammo < wpn.stats.mag_size {
+                        f(wpn, muzzle, self.orientation);
+                    }
+                }
             }
         }
     }
@@ -142,7 +142,9 @@ impl NetUpdateHandle for Player {
                 GameNetworkPacket::NET_PLAYER_DIED(network.transport.client_id())
                     .serialized()
                     .unwrap(),
-            )
+            );
+
+            return;
         }
 
         self.direction = Vector2::new(0.0, 0.0);
@@ -182,7 +184,22 @@ impl NetUpdateHandle for Player {
             )
             .serialized()
             .unwrap(),
-        )
+        );
+
+        if let Some(wpn) = self.inventory.selected_weapon_mut() {
+            if handle.is_key_pressed(KeyboardKey::KEY_R) {
+                self.reloading = true
+            }
+
+            if self.reloading
+                && self
+                    .timers
+                    .after(Timers::PlayerReloading, *wpn.stats.reload_time())
+            {
+                self.reloading = false;
+                wpn.reload();
+            }
+        }
     }
 }
 
@@ -192,18 +209,18 @@ impl RenderHandle for Player {
             return;
         }
 
-        d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, player::PLAYER_COLOR);
-
-        let radius = self.rectangle.width / 2.0;
-        let player_origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
+        d.draw_rectangle_pro(
+            self.rectangle,
+            RVector2::zero(),
+            0.0,
+            configs::player::PLAYER_COLOR,
+        );
 
         self.inventory
-            .render_weapon(d, player_origin, radius, self.orientation);
+            .render_weapon(d, &self.rectangle, self.orientation);
 
         #[cfg(debug_assertions)]
         {
-            let mouse_pos = d.get_screen_to_world2D(d.get_mouse_position(), self.camera);
-
             let lx = Vector2::new(
                 self.rectangle.x,
                 self.rectangle.y + ENTITY_PLAYER_SIZE / 2.0,
@@ -225,25 +242,21 @@ impl RenderHandle for Player {
                 Color::BLUE,
             );
 
+            let mouse_pos = d.get_screen_to_world2D(d.get_mouse_position(), self.camera);
+            let origin = Vector2::new(self.rectangle.x, self.rectangle.y)
+                .add_scalar(self.rectangle.width / 2.0);
+
             d.draw_line(
-                player_origin.x as i32,
-                player_origin.y as i32,
+                origin.x as i32,
+                origin.y as i32,
                 mouse_pos.x as i32,
                 mouse_pos.y as i32,
                 Color::GREEN,
             );
-
-            d.draw_circle_lines(
-                player_origin.x as i32,
-                player_origin.y as i32,
-                radius,
-                Color::RED,
-            );
-
             d.draw_text(
                 &format!("{:#?} {:#?}", self.grid.x, self.grid.y),
-                player_origin.x as i32,
-                player_origin.y as i32,
+                origin.x as i32,
+                origin.y as i32,
                 12,
                 Color::BLACK,
             );

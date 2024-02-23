@@ -5,7 +5,7 @@ use std::time::Duration;
 use lazy_static::lazy_static;
 use lib::types::WeaponVariant;
 
-use nalgebra::{Rotation2, Vector2};
+use nalgebra::{Rotation2, Vector, Vector2};
 use raylib::prelude::*;
 use std::collections::HashMap;
 
@@ -31,10 +31,8 @@ pub struct WeaponStats {
     accuracy: WeaponAccuracy,
     reload_time: Duration,
     fire_time: Duration,
-    mag_size: u8,
-    total_ammo: u8,
-    pub curr_mag_size: u8,
-    pub curr_total_ammo: u8,
+    pub mag_size: u8,
+    pub total_ammo: u8,
     price: u32,
 }
 
@@ -57,8 +55,6 @@ impl WeaponStats {
             fire_time,
             mag_size,
             total_ammo: mag_size * mags,
-            curr_mag_size: mag_size,
-            curr_total_ammo: mag_size * mags,
             price,
         }
     }
@@ -162,6 +158,8 @@ pub struct Weapon {
     pub texture: TEXTURE,
     pub muzzle: (f32, f32),
     pub stats: &'static WeaponStats,
+    pub curr_total_ammo: u8,
+    pub curr_mag_ammo: u8,
 }
 
 impl Weapon {
@@ -169,35 +167,111 @@ impl Weapon {
         let _ = WeaponStatsMapping::WPN_STATS_AKA_69.get();
 
         match variant {
-            WeaponVariant::DEAN_1911 => Weapon {
-                variant,
-                texture: TEXTURE::WPN_DEAN,
-                muzzle: (0.942, 0.685),
-                stats: WeaponStatsMapping::WPN_STATS_DEAN_1911.get(),
-            },
-            WeaponVariant::AKA_69 => Weapon {
-                variant,
-                texture: TEXTURE::WPN_AKA,
-                muzzle: (0.988, 0.173),
-                stats: WeaponStatsMapping::WPN_STATS_AKA_69.get(),
-            },
-            WeaponVariant::SHOTPEW => Weapon {
-                variant,
-                texture: TEXTURE::WPN_SHOTPEW,
-                muzzle: (0.988, 0.046),
-                stats: WeaponStatsMapping::WPN_STATS_SHOTPEW.get(),
-            },
-            WeaponVariant::PRRR => Weapon {
-                variant,
-                texture: TEXTURE::WPN_PRRR,
-                muzzle: (0.988, 0.372),
-                stats: WeaponStatsMapping::WPN_STATS_PRRR.get(),
-            },
+            WeaponVariant::DEAN_1911 => {
+                let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
+                Weapon {
+                    variant,
+                    texture: TEXTURE::WPN_DEAN,
+                    muzzle: (0.942, 0.685),
+                    stats,
+                    curr_total_ammo: stats.total_ammo,
+                    curr_mag_ammo: stats.mag_size,
+                }
+            }
+            WeaponVariant::AKA_69 => {
+                let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
+                Weapon {
+                    variant,
+                    texture: TEXTURE::WPN_AKA,
+                    muzzle: (0.988, 0.173),
+                    stats: WeaponStatsMapping::WPN_STATS_AKA_69.get(),
+                    curr_total_ammo: stats.total_ammo,
+                    curr_mag_ammo: stats.mag_size,
+                }
+            }
+            WeaponVariant::SHOTPEW => {
+                let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
+                Weapon {
+                    variant,
+                    texture: TEXTURE::WPN_SHOTPEW,
+                    muzzle: (0.988, 0.046),
+                    stats: WeaponStatsMapping::WPN_STATS_SHOTPEW.get(),
+                    curr_total_ammo: stats.total_ammo,
+                    curr_mag_ammo: stats.mag_size,
+                }
+            }
+            WeaponVariant::PRRR => {
+                let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
+                Weapon {
+                    variant,
+                    texture: TEXTURE::WPN_PRRR,
+                    muzzle: (0.988, 0.372),
+                    stats: WeaponStatsMapping::WPN_STATS_PRRR.get(),
+                    curr_total_ammo: stats.total_ammo,
+                    curr_mag_ammo: stats.mag_size,
+                }
+            }
         }
+    }
+
+    pub fn remaining_ammo(&self) -> u8 {
+        let remaining = self
+            .curr_total_ammo
+            .checked_sub(self.curr_mag_ammo)
+            .unwrap_or(0);
+
+        remaining
+    }
+
+    pub fn reload(&mut self) {
+        let delta_ammo = self.stats.mag_size - self.curr_mag_ammo;
+        if let Some(total) = self.curr_total_ammo.checked_sub(delta_ammo) {
+            self.curr_total_ammo = total;
+            self.curr_mag_ammo += delta_ammo;
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.curr_mag_ammo == 0
+    }
+
+    /// returns the muzzle position in world coords
+    pub fn muzzle(
+        &self,
+        buffer: &Texture2D,
+        player_rect: &Rectangle,
+        player_orientation: f32,
+    ) -> Vector2<f32> {
+        let origin = Vector2::new(
+            player_rect.x + player_rect.width / 2.0,
+            player_rect.y + player_rect.height / 2.0,
+        );
+
+        let theta = player_orientation.to_degrees();
+
+        let flip_y = if theta.abs() <= 180.0 && theta.abs() > 90.0 {
+            true
+        } else {
+            false
+        };
+
+        let (wpn_w, wpn_h) = (
+            buffer.width as f32 * ENTITY_WEAPON_SIZE,
+            buffer.height as f32 * ENTITY_WEAPON_SIZE,
+        );
+
+        let muzzle = Vector2::new(
+            origin.x + player_rect.width / 2.0 + wpn_w * self.muzzle.0,
+            origin.y + if flip_y { 1.0 } else { -1.0 } * (wpn_h / 2.0) * self.muzzle.1,
+        );
+
+        let coords = Rotation2::new(player_orientation) * (muzzle - origin) + origin;
+
+        coords
     }
 }
 
-// this bs is shared between the local player (Player) and other dudes (Enemy)
+/// controllers some puppet's (`Player`, `Enemy`) weapons 'n' ammo
 #[derive(Debug)]
 pub struct Invenotry {
     pub cash: Cash,
@@ -235,8 +309,7 @@ impl Invenotry {
     pub fn render_weapon(
         &mut self,
         d: &mut RaylibMode2D<RaylibDrawHandle>,
-        origin: Vector2<f32>,
-        radius: f32,
+        player_rect: &Rectangle,
         orientation: f32,
     ) {
         if let Some(wpn) = &self.selected_weapon() {
@@ -248,7 +321,11 @@ impl Invenotry {
                 buffer.height as f32 * ENTITY_WEAPON_SIZE,
             );
 
-            let wpn_coords = Self::calculate_point_coords(orientation, radius, origin);
+            let radius = player_rect.width / 2.0;
+            let origin = Vector2::new(player_rect.x, player_rect.y).add_scalar(radius);
+
+            let wpn_coords =
+                Vector2::new(radius * orientation.cos(), radius * orientation.sin()) + origin;
             let theta = orientation.to_degrees();
 
             let flip_y = if theta.abs() <= 180.0 && theta.abs() > 90.0 {
@@ -264,8 +341,8 @@ impl Invenotry {
                 buffer.height as f32 * if flip_y { -1.0 } else { 1.0 },
             );
 
-            let wpn_x = wpn_coords.0;
-            let wpn_y = wpn_coords.1;
+            let wpn_x = wpn_coords.x;
+            let wpn_y = wpn_coords.y;
 
             let dest_rect = Rectangle::new(wpn_x, wpn_y, wpn_w, wpn_h);
 
@@ -284,28 +361,24 @@ impl Invenotry {
                     d.draw_rectangle_pro(dest_rect, RVector2::zero(), theta, Color::YELLOW);
                 }
 
-                let muzzle = Vector2::new(
-                    origin.x + radius + wpn_w * wpn.muzzle.0,
-                    origin.y + if flip_y { 1.0 } else { -1.0 } * (wpn_h / 2.0) * wpn.muzzle.1,
-                );
-                let coords = Rotation2::new(orientation) * (muzzle - origin) + origin;
+                let coords = wpn.muzzle(buffer, player_rect, orientation);
 
                 d.draw_circle(coords.x as i32, coords.y as i32, 2.0, Color::RED);
+                d.draw_circle_lines(origin.x as i32, origin.y as i32, radius, Color::RED);
             }
         };
     }
 
-    fn calculate_point_coords(orientation: f32, radius: f32, origin: Vector2<f32>) -> (f32, f32) {
-        let coords = Vector2::new(radius * orientation.cos(), radius * orientation.sin()) + origin;
-        (coords.x, coords.y)
+    pub fn selected_weapon(&self) -> Option<&Weapon> {
+        self.selected_weapon
+            .as_ref()
+            .and_then(|s_wpn| self.weapons.get(s_wpn))
     }
 
-    pub fn selected_weapon(&self) -> Option<&Weapon> {
-        if let Some(s_wpn) = &self.selected_weapon {
-            self.weapons.get(&s_wpn)
-        } else {
-            None
-        }
+    pub fn selected_weapon_mut(&mut self) -> Option<&mut Weapon> {
+        self.selected_weapon
+            .as_ref()
+            .and_then(|s_wpn| self.weapons.get_mut(s_wpn))
     }
 
     pub fn select(&mut self, variant: WeaponVariant) {
@@ -318,11 +391,5 @@ impl Invenotry {
 
     pub fn remove(&mut self, variant: WeaponVariant) -> Option<Weapon> {
         self.weapons.remove(&variant)
-    }
-
-    pub fn set_mag_ammo<F>(f: F) -> ()
-    where
-        F: FnOnce(i32) -> i32,
-    {
     }
 }
