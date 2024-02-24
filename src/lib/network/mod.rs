@@ -58,8 +58,7 @@ pub enum GameNetworkPacket {
     NET_PLAYER_WORLD_POSITION(RawClientId, (f32, f32)),
     NET_PLAYER_ORIENTATION(u64, f32),
     NET_PLAYER_LEFT(RawClientId),
-    NET_PLAYER_WEAPON_REQUEST(Cash, WeaponVariant),
-    NET_PLAYER_WEAPON_RESPONSE(WeaponVariant),
+    NET_PLAYER_WEAPON(WeaponVariant),
     NET_PROJECTILE_CREATE(ProjectileData),
     NET_PROJECTILE_IMPACT(RawProjectileId, Option<RawClientId>, Damage),
 }

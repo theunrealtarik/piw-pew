@@ -4,6 +4,7 @@ use std::time::Instant;
 use nalgebra::{Point2, Vector2};
 use raylib::prelude::*;
 use renet::DefaultChannel;
+use strum::VariantArray;
 
 use crate::configs;
 use crate::prelude::*;
@@ -209,6 +210,21 @@ impl NetUpdateHandle for Player {
                 self.reloading = false;
                 wpn.reload();
             }
+        }
+
+        for wpn_variant in WeaponVariant::VARIANTS {
+            let wpn = Weapon::new(*wpn_variant);
+
+            if !self.inventory.has(wpn_variant) {
+                network.client.send_message(
+                    DefaultChannel::ReliableUnordered,
+                    GameNetworkPacket::NET_PLAYER_WEAPON(*wpn_variant)
+                        .serialized()
+                        .unwrap(),
+                )
+            } else if handle.is_key_pressed(wpn.equip_key()) && !self.reloading {
+                self.inventory.select(*wpn_variant);
+            };
         }
     }
 }

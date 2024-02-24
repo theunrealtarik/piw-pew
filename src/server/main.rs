@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 
 use lib::prelude::*;
 use lib::types::*;
-use lib::utils::logging::*;
 
 use renet::{
     transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig},
@@ -229,6 +228,18 @@ fn main() {
                                         );
                                     }
                                 }
+                            }
+                        }
+                        GameNetworkPacket::NET_PLAYER_WEAPON(variant) => {
+                            let wpn = variant.weapon_instance();
+                            if player.data.cash >= *wpn.stats.price() as i64 {
+                                server.send_message(
+                                    client_id,
+                                    DefaultChannel::ReliableUnordered,
+                                    GameNetworkPacket::NET_PLAYER_WEAPON(variant)
+                                        .serialized()
+                                        .unwrap(),
+                                )
                             }
                         }
                         _ => {}

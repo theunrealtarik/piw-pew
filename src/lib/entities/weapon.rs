@@ -63,6 +63,12 @@ pub enum WeaponVariant {
     PRRR,
 }
 
+impl WeaponVariant {
+    pub fn weapon_instance(self) -> Weapon {
+        Weapon::new(self)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum WeaponAccuracy {
     Low,
@@ -163,6 +169,7 @@ pub struct Weapon {
     pub stats: &'static WeaponStats,
     pub curr_total_ammo: u8,
     pub curr_mag_ammo: u8,
+    key: KeyboardKey,
 }
 
 impl Weapon {
@@ -179,6 +186,7 @@ impl Weapon {
                     stats,
                     curr_total_ammo: stats.total_ammo,
                     curr_mag_ammo: stats.mag_size,
+                    key: KeyboardKey::KEY_ONE,
                 }
             }
             WeaponVariant::AKA_69 => {
@@ -190,6 +198,7 @@ impl Weapon {
                     stats: WeaponStatsMapping::WPN_STATS_AKA_69.get(),
                     curr_total_ammo: stats.total_ammo,
                     curr_mag_ammo: stats.mag_size,
+                    key: KeyboardKey::KEY_TWO,
                 }
             }
             WeaponVariant::SHOTPEW => {
@@ -201,6 +210,7 @@ impl Weapon {
                     stats: WeaponStatsMapping::WPN_STATS_SHOTPEW.get(),
                     curr_total_ammo: stats.total_ammo,
                     curr_mag_ammo: stats.mag_size,
+                    key: KeyboardKey::KEY_THREE,
                 }
             }
             WeaponVariant::PRRR => {
@@ -212,6 +222,7 @@ impl Weapon {
                     stats: WeaponStatsMapping::WPN_STATS_PRRR.get(),
                     curr_total_ammo: stats.total_ammo,
                     curr_mag_ammo: stats.mag_size,
+                    key: KeyboardKey::KEY_FOUR,
                 }
             }
         }
@@ -271,6 +282,10 @@ impl Weapon {
         let coords = Rotation2::new(player_orientation) * (muzzle - origin) + origin;
 
         coords
+    }
+
+    pub fn equip_key(&self) -> KeyboardKey {
+        self.key
     }
 }
 
@@ -385,6 +400,10 @@ impl Invenotry {
     }
 
     pub fn select(&mut self, variant: WeaponVariant) {
+        let Some(_) = self.weapons.get(&variant) else {
+            return;
+        };
+
         self.selected_weapon = Some(variant);
     }
 

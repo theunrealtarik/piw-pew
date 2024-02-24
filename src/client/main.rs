@@ -285,6 +285,9 @@ impl NetUpdateHandle for Game {
                     GameNetworkPacket::NET_PLAYER_KILL_REWARD(data) => {
                         local_player.inventory.cash = data.cash;
                     }
+                    GameNetworkPacket::NET_PLAYER_WEAPON(variant) => {
+                        local_player.inventory.add(variant.weapon_instance());
+                    }
                     _ => {}
                 }
             }
