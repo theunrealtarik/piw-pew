@@ -29,7 +29,7 @@ pub struct PlayerData {
     /// last one who hit the player
     pub _last: Option<RawClientId>,
     pub position: (f32, f32),
-    pub orientation: f32,
+    pub orientation: Orientation,
     pub weapon: WeaponVariant,
     pub health: Health,
     pub cash: Cash,
@@ -41,7 +41,7 @@ pub struct ProjectileData {
     pub position: (f32, f32),
     pub velocity: (f32, f32),
     pub grid: (i32, i32),
-    pub orientation: f32,
+    pub orientation: Orientation,
     pub shooter: RawClientId,
     pub damage: u8,
 }

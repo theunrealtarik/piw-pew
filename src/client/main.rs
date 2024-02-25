@@ -316,29 +316,7 @@ impl NetUpdateHandle for Game {
             local_player.rectangle.width,
             local_player.rectangle.height,
         ) {
-            local_player.on_shoot(handle, |wpn, muzzle, theta| {
-                let p = Projectile::new(
-                    utils::raw_uuid(),
-                    (muzzle.x, muzzle.y),
-                    ENTITY_PROJECTILE_SPEED,
-                    theta,
-                );
-
-                network.client.send_message(
-                    DefaultChannel::ReliableUnordered,
-                    GameNetworkPacket::NET_PROJECTILE_CREATE(ProjectileData {
-                        id: p.id,
-                        position: (p.position.x, p.position.y),
-                        grid: (p.grid.x, p.grid.y),
-                        velocity: (p.velocity.x, p.velocity.y),
-                        orientation: p.orientation,
-                        shooter: network.transport.client_id().raw(),
-                        damage: *wpn.stats.damage(),
-                    })
-                    .serialized()
-                    .unwrap(),
-                );
-            });
+            local_player.on_shoot(handle, network);
 
             let rectangle = Rectangle::new(
                 position.x,

@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::time::Instant;
 
 use nalgebra::{Point2, Vector2};
 use raylib::prelude::*;
@@ -9,6 +8,7 @@ use strum::VariantArray;
 use crate::configs;
 use crate::prelude::*;
 use crate::types::*;
+use crate::utils;
 
 #[allow(dead_code)]
 pub struct Player {
@@ -94,10 +94,7 @@ impl Player {
         new_position
     }
 
-    pub fn on_shoot<F>(&mut self, handle: &RaylibHandle, f: F)
-    where
-        F: FnOnce(&Weapon, Vector2<f32>, f32),
-    {
+    pub fn on_shoot(&mut self, handle: &RaylibHandle, network: &mut GameNetwork) {
         let assets = self.assets.borrow();
 
         if handle.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
@@ -118,7 +115,29 @@ impl Player {
                     wpn.curr_mag_ammo = amount;
 
                     if wpn.curr_mag_ammo != 0 && wpn.curr_mag_ammo < wpn.stats.mag_size {
-                        f(wpn, muzzle, self.orientation);
+                        for angle in wpn.stats.accuracy().deviation_angles(self.orientation) {
+                            let p = Projectile::new(
+                                utils::raw_uuid(),
+                                (muzzle.x, muzzle.y),
+                                ENTITY_PROJECTILE_SPEED,
+                                angle,
+                            );
+
+                            network.client.send_message(
+                                DefaultChannel::ReliableUnordered,
+                                GameNetworkPacket::NET_PROJECTILE_CREATE(ProjectileData {
+                                    id: p.id,
+                                    position: (p.position.x, p.position.y),
+                                    grid: (p.grid.x, p.grid.y),
+                                    velocity: (p.velocity.x, p.velocity.y),
+                                    orientation: p.orientation,
+                                    shooter: network.transport.client_id().raw(),
+                                    damage: *wpn.stats.damage(),
+                                })
+                                .serialized()
+                                .unwrap(),
+                            );
+                        }
                     }
                 }
             }

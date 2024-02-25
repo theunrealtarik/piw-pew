@@ -10,11 +10,16 @@ pub struct Projectile {
     pub position: Vector2<f32>,
     pub velocity: Vector2<f32>,
     pub grid: Point2<i32>,
-    pub orientation: f32,
+    pub orientation: Orientation,
 }
 
 impl Projectile {
-    pub fn new(id: RawProjectileId, position: (f32, f32), speed: u32, orientation: f32) -> Self {
+    pub fn new(
+        id: RawProjectileId,
+        position: (f32, f32),
+        speed: u32,
+        orientation: Orientation,
+    ) -> Self {
         let velocity = Vector2::new(
             speed as f32 * orientation.cos(),
             speed as f32 * orientation.sin(),

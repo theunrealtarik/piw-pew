@@ -25,6 +25,7 @@ pub mod types {
     pub type Health = i8;
     pub type RawClientId = u64;
     pub type RawProjectileId = u64;
+    pub type Orientation = f32;
 
     pub type RVector2 = raylib::core::math::Vector2;
 }

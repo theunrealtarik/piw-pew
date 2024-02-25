@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types)]
 
+use rand::Rng;
 use raylib::prelude::*;
 
 use lazy_static::lazy_static;
@@ -17,7 +18,7 @@ lazy_static! {
     pub static ref WPN_STATS_AKA_69: WeaponStats = WeaponStats::new(
         "AKA-69",
         40,
-        WeaponAccuracy::Moderate,
+        WeaponAccuracy::Moderate(1),
         Duration::from_millis(100),
         Duration::from_millis(1500),
         30,
@@ -27,7 +28,7 @@ lazy_static! {
     pub static ref WPN_STATS_SHOTPEW: WeaponStats = WeaponStats::new(
         "PUMP Shotpew",
         25,
-        WeaponAccuracy::Low,
+        WeaponAccuracy::Low(5),
         Duration::from_millis(300),
         Duration::from_millis(2000),
         5,
@@ -37,7 +38,7 @@ lazy_static! {
     pub static ref WPN_STATS_DEAN_1911: WeaponStats = WeaponStats::new(
         "DEAN 1911",
         25,
-        WeaponAccuracy::High,
+        WeaponAccuracy::High(1),
         Duration::from_millis(300),
         Duration::from_millis(1100),
         7,
@@ -47,7 +48,7 @@ lazy_static! {
     pub static ref WPN_STATS_PRRR: WeaponStats = WeaponStats::new(
         "PRRR",
         45,
-        WeaponAccuracy::Low,
+        WeaponAccuracy::Low(1),
         Duration::from_millis(50),
         Duration::from_millis(2500),
         30,
@@ -72,9 +73,28 @@ impl WeaponVariant {
 
 #[derive(Debug, Clone)]
 pub enum WeaponAccuracy {
-    Low,
-    Moderate,
-    High,
+    Low(u8),
+    Moderate(u8),
+    High(u8),
+}
+
+impl WeaponAccuracy {
+    pub fn deviation_angles(&self, theta: Orientation) -> Vec<Orientation> {
+        let mut rng = rand::thread_rng();
+        let (num_shots, deviation) = match self {
+            Self::Low(n) => (*n, 0.30),
+            Self::Moderate(n) => (*n, 0.10),
+            Self::High(n) => (*n, 0.0),
+        };
+
+        let mut deviations = Vec::new();
+        for _ in 0..num_shots {
+            let deviation_angle: Orientation = rng.gen_range(-deviation..deviation);
+            let shot_angle = theta + deviation_angle;
+            deviations.push(shot_angle);
+        }
+        deviations
+    }
 }
 
 #[derive(Debug)]
@@ -253,7 +273,7 @@ impl Weapon {
         &self,
         buffer: &Texture2D,
         player_rect: &Rectangle,
-        player_orientation: f32,
+        player_orientation: Orientation,
     ) -> Vector2<f32> {
         let origin = Vector2::new(
             player_rect.x + player_rect.width / 2.0,
@@ -291,7 +311,7 @@ impl Weapon {
         &self,
         d: &mut RaylibMode2D<RaylibDrawHandle>,
         player_rect: &Rectangle,
-        orientation: f32,
+        orientation: Orientation,
         assets: SharedAssets<GameAssets>,
     ) {
         let assets = assets.borrow();
@@ -373,7 +393,7 @@ impl Invenotry {
         &self,
         d: &mut RaylibMode2D<RaylibDrawHandle>,
         player_rect: &Rectangle,
-        orientation: f32,
+        orientation: Orientation,
     ) {
         if let Some(wpn) = self.selected_weapon() {
             // let wpn = *wpn;

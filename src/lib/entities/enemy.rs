@@ -2,7 +2,6 @@ use raylib::prelude::*;
 
 use nalgebra::Vector2;
 use renet::ClientId;
-use std::path::is_separator;
 use std::rc::Rc;
 
 use super::WeaponVariant;
@@ -14,7 +13,7 @@ use crate::utils::*;
 
 pub struct Enemy {
     pub id: ClientId,
-    pub orientation: f32,
+    pub orientation: Orientation,
     pub rectangle: Rectangle,
     pub origin: Vector2<f32>,
     pub health: Health,
@@ -27,7 +26,7 @@ impl Enemy {
         id: ClientId,
         x: f32,
         y: f32,
-        orientation: f32,
+        orientation: Orientation,
         hp: Health,
         assets: SharedAssets<GameAssets>,
     ) -> Self {
