@@ -169,7 +169,7 @@ impl NetUpdateHandle for Game {
                             .into_iter()
                             .map(|(id, data)| {
                                 let client_id = ClientId::from_raw(id);
-                                let mut enemy = Enemy::new(
+                                let enemy = Enemy::new(
                                     client_id,
                                     data.position.0,
                                     data.position.1,
@@ -177,9 +177,6 @@ impl NetUpdateHandle for Game {
                                     data.health,
                                     Rc::clone(&self.assets),
                                 );
-
-                                enemy.inventory.select(data.weapon);
-                                enemy.inventory.add(Weapon::new(data.weapon));
 
                                 (client_id, enemy)
                             })
@@ -202,7 +199,7 @@ impl NetUpdateHandle for Game {
                             local_player.inventory.add(Weapon::new(data.weapon));
                         } else {
                             let id = ClientId::from_raw(data._id);
-                            let mut enemy = Enemy::new(
+                            let enemy = Enemy::new(
                                 id,
                                 pos_x,
                                 pos_y,
@@ -211,47 +208,7 @@ impl NetUpdateHandle for Game {
                                 Rc::clone(&self.assets),
                             );
 
-                            enemy.inventory.select(data.weapon);
-                            enemy.inventory.add(Weapon::new(data.weapon));
                             self.world.enemies.insert(id, enemy);
-                        }
-                    }
-                    // these run at every frame
-                    GameNetworkPacket::NET_PLAYER_WORLD_POSITION(id, (x, y)) => {
-                        if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
-                            enemy.rectangle.x = x;
-                            enemy.rectangle.y = y;
-                        }
-                    }
-                    GameNetworkPacket::NET_PROJECTILE_CREATE(projectile) => {
-                        self.world.projectiles.insert(
-                            projectile.id,
-                            Projectile::new(
-                                projectile.id,
-                                projectile.position,
-                                ENTITY_PROJECTILE_SPEED,
-                                projectile.orientation,
-                            ),
-                        );
-                    }
-                    GameNetworkPacket::NET_PROJECTILE_IMPACT(pid, cid, damage) => {
-                        self.world.projectiles.remove(&pid);
-
-                        if let Some(cid) = cid {
-                            if cid == network.transport.client_id().raw() {
-                                local_player.health -= damage as Health;
-                                local_player.health = nalgebra::clamp(
-                                    local_player.health,
-                                    0,
-                                    ENTITY_PLAYER_MAX_HEALTH,
-                                );
-                            } else if let Some(puppet) =
-                                self.world.enemies.get_mut(&ClientId::from_raw(cid))
-                            {
-                                puppet.health -= damage as Health;
-                                puppet.health =
-                                    nalgebra::clamp(puppet.health, 0, ENTITY_PLAYER_MAX_HEALTH);
-                            }
                         }
                     }
                     _ => {}
@@ -288,6 +245,42 @@ impl NetUpdateHandle for Game {
                     GameNetworkPacket::NET_PLAYER_WEAPON(variant) => {
                         local_player.inventory.add(variant.weapon_instance());
                     }
+                    GameNetworkPacket::NET_PROJECTILE_CREATE(projectile) => {
+                        self.world.projectiles.insert(
+                            projectile.id,
+                            Projectile::new(
+                                projectile.id,
+                                projectile.position,
+                                ENTITY_PROJECTILE_SPEED,
+                                projectile.orientation,
+                            ),
+                        );
+                    }
+                    GameNetworkPacket::NET_PROJECTILE_IMPACT(pid, cid, damage) => {
+                        self.world.projectiles.remove(&pid);
+
+                        if let Some(cid) = cid {
+                            if cid == network.transport.client_id().raw() {
+                                local_player.health -= damage as Health;
+                                local_player.health = nalgebra::clamp(
+                                    local_player.health,
+                                    0,
+                                    ENTITY_PLAYER_MAX_HEALTH,
+                                );
+                            } else if let Some(puppet) =
+                                self.world.enemies.get_mut(&ClientId::from_raw(cid))
+                            {
+                                puppet.health -= damage as Health;
+                                puppet.health =
+                                    nalgebra::clamp(puppet.health, 0, ENTITY_PLAYER_MAX_HEALTH);
+                            }
+                        }
+                    }
+                    GameNetworkPacket::NET_PLAYER_WEAPON_SELECT(id, variant) => {
+                        if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
+                            enemy.weapon = Some(variant)
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -299,6 +292,12 @@ impl NetUpdateHandle for Game {
                     GameNetworkPacket::NET_PLAYER_ORIENTATION(id, orientation) => {
                         if let Some(puppet) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
                             puppet.orientation = orientation
+                        }
+                    }
+                    GameNetworkPacket::NET_PLAYER_WORLD_POSITION(id, (x, y)) => {
+                        if let Some(enemy) = self.world.enemies.get_mut(&ClientId::from_raw(id)) {
+                            enemy.rectangle.x = x;
+                            enemy.rectangle.y = y;
                         }
                     }
                     _ => {}
@@ -326,7 +325,7 @@ impl NetUpdateHandle for Game {
                 );
 
                 network.client.send_message(
-                    DefaultChannel::ReliableOrdered,
+                    DefaultChannel::ReliableUnordered,
                     GameNetworkPacket::NET_PROJECTILE_CREATE(ProjectileData {
                         id: p.id,
                         position: (p.position.x, p.position.y),
@@ -363,7 +362,7 @@ impl NetUpdateHandle for Game {
 
             let position = local_player.move_to(position);
             network.client.send_message(
-                DefaultChannel::ReliableUnordered,
+                DefaultChannel::Unreliable,
                 GameNetworkPacket::NET_PLAYER_WORLD_POSITION(
                     network.uuid,
                     (position.x, position.y),

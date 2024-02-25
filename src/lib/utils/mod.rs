@@ -81,13 +81,13 @@ pub mod time {
                     }
                 }
                 None => {
-                    self.add(id, Instant::now());
+                    self.add(id);
                     true
                 }
             }
         }
 
-        pub fn add(&mut self, id: T, instant: Instant) {
+        pub fn add(&mut self, id: T) {
             self.value.insert(id, Instant::now());
         }
     }

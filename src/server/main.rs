@@ -157,23 +157,6 @@ fn main() {
 
         for client_id in server.clients_id() {
             while let Some(message) =
-                server.receive_message(client_id, DefaultChannel::ReliableOrdered)
-            {
-                if let (Ok(packet), Some(_)) = (
-                    rmp_serde::from_slice::<GameNetworkPacket>(&message),
-                    state.players.get_mut(&client_id),
-                ) {
-                    match packet {
-                        GameNetworkPacket::NET_PROJECTILE_CREATE(projectile) => {
-                            state.projectiles.insert(projectile.id, projectile);
-                            server.broadcast_message(DefaultChannel::ReliableOrdered, message);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            while let Some(message) =
                 server.receive_message(client_id, DefaultChannel::ReliableUnordered)
             {
                 if let (Ok(packet), Some(player)) = (
@@ -181,14 +164,11 @@ fn main() {
                     state.players.get_mut(&client_id),
                 ) {
                     match packet {
-                        GameNetworkPacket::NET_PLAYER_WORLD_POSITION(_, (x, y)) => {
-                            player.data.position = (x, y);
-                            server.broadcast_message_except(
-                                client_id,
-                                DefaultChannel::ReliableOrdered,
-                                message,
-                            )
+                        GameNetworkPacket::NET_PROJECTILE_CREATE(projectile) => {
+                            state.projectiles.insert(projectile.id, projectile);
+                            server.broadcast_message(DefaultChannel::ReliableUnordered, message);
                         }
+
                         GameNetworkPacket::NET_PLAYER_DIED(id) => {
                             if player.id.raw() == id {
                                 let rnd_spwn = map.get_random_spawn_position();
@@ -232,7 +212,11 @@ fn main() {
                         }
                         GameNetworkPacket::NET_PLAYER_WEAPON(variant) => {
                             let wpn = variant.weapon_instance();
-                            if player.data.cash >= *wpn.stats.price() as i64 {
+                            let price = *wpn.stats.price() as i64;
+
+                            if player.data.cash >= price {
+                                player.data.cash -= price;
+
                                 server.send_message(
                                     client_id,
                                     DefaultChannel::ReliableUnordered,
@@ -242,6 +226,12 @@ fn main() {
                                 )
                             }
                         }
+                        GameNetworkPacket::NET_PLAYER_WEAPON_SELECT(_, _) => server
+                            .broadcast_message_except(
+                                client_id,
+                                DefaultChannel::ReliableUnordered,
+                                message,
+                            ),
                         _ => {}
                     }
                 }
@@ -249,11 +239,19 @@ fn main() {
 
             while let Some(message) = server.receive_message(client_id, DefaultChannel::Unreliable)
             {
-                if let (Ok(packet), Some(_)) = (
+                if let (Ok(packet), Some(player)) = (
                     rmp_serde::from_slice::<GameNetworkPacket>(&message),
                     state.players.get_mut(&client_id),
                 ) {
                     match packet {
+                        GameNetworkPacket::NET_PLAYER_WORLD_POSITION(_, (x, y)) => {
+                            player.data.position = (x, y);
+                            server.broadcast_message_except(
+                                client_id,
+                                DefaultChannel::Unreliable,
+                                message,
+                            )
+                        }
                         GameNetworkPacket::NET_PLAYER_ORIENTATION(_, _) => {
                             server.broadcast_message(DefaultChannel::Unreliable, message)
                         }
@@ -296,7 +294,7 @@ fn main() {
                     {
                         hits.push(*id);
                         server.broadcast_message(
-                            DefaultChannel::ReliableOrdered,
+                            DefaultChannel::ReliableUnordered,
                             GameNetworkPacket::NET_PROJECTILE_IMPACT(*id, None, projectile.damage)
                                 .serialized()
                                 .unwrap(),
@@ -317,7 +315,7 @@ fn main() {
                     player.data._last = Some(projectile.shooter);
                     hits.push(*id);
                     server.broadcast_message(
-                        DefaultChannel::ReliableOrdered,
+                        DefaultChannel::ReliableUnordered,
                         GameNetworkPacket::NET_PROJECTILE_IMPACT(
                             *id,
                             Some(player.id.raw()),
@@ -358,7 +356,7 @@ impl Client {
                 orientation: 0.0,
                 health: 100,
                 weapon: WeaponVariant::DEAN_1911,
-                cash: 2200,
+                cash: 200,
             },
         }
     }

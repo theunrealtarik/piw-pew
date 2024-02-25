@@ -199,7 +199,7 @@ impl NetUpdateHandle for Player {
         if let Some(wpn) = self.inventory.selected_weapon_mut() {
             if handle.is_key_pressed(KeyboardKey::KEY_R) {
                 self.reloading = true;
-                self.timers.add(Timers::PlayerReloading, Instant::now());
+                self.timers.add(Timers::PlayerReloading);
             }
 
             if self.reloading
@@ -215,16 +215,27 @@ impl NetUpdateHandle for Player {
         for wpn_variant in WeaponVariant::VARIANTS {
             let wpn = Weapon::new(*wpn_variant);
 
-            if !self.inventory.has(wpn_variant) {
-                network.client.send_message(
-                    DefaultChannel::ReliableUnordered,
-                    GameNetworkPacket::NET_PLAYER_WEAPON(*wpn_variant)
+            if handle.is_key_pressed(wpn.equip_key()) && !self.reloading {
+                if !self.inventory.has(wpn_variant) {
+                    network.client.send_message(
+                        DefaultChannel::ReliableUnordered,
+                        GameNetworkPacket::NET_PLAYER_WEAPON(*wpn_variant)
+                            .serialized()
+                            .unwrap(),
+                    )
+                } else {
+                    self.inventory.select(*wpn_variant);
+                    network.client.send_message(
+                        DefaultChannel::ReliableUnordered,
+                        GameNetworkPacket::NET_PLAYER_WEAPON_SELECT(
+                            network.transport.client_id().raw(),
+                            *wpn_variant,
+                        )
                         .serialized()
                         .unwrap(),
-                )
-            } else if handle.is_key_pressed(wpn.equip_key()) && !self.reloading {
-                self.inventory.select(*wpn_variant);
-            };
+                    )
+                }
+            }
         }
     }
 }

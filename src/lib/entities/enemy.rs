@@ -2,9 +2,10 @@ use raylib::prelude::*;
 
 use nalgebra::Vector2;
 use renet::ClientId;
+use std::path::is_separator;
 use std::rc::Rc;
 
-use super::Invenotry;
+use super::WeaponVariant;
 
 use crate::configs::*;
 use crate::core::*;
@@ -17,7 +18,7 @@ pub struct Enemy {
     pub rectangle: Rectangle,
     pub origin: Vector2<f32>,
     pub health: Health,
-    pub inventory: Invenotry,
+    pub weapon: Option<WeaponVariant>,
     assets: SharedAssets<GameAssets>,
 }
 
@@ -36,7 +37,7 @@ impl Enemy {
             rectangle: Rectangle::new(x, y, ENTITY_PLAYER_SIZE as f32, ENTITY_PLAYER_SIZE as f32),
             origin: Default::default(),
             health: hp,
-            inventory: Invenotry::new(Rc::clone(&assets)),
+            weapon: None,
             assets,
         }
     }
@@ -47,12 +48,12 @@ impl RenderHandle for Enemy {
     where
         Self: AssetsHandle,
     {
-        d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, Color::RED);
-
-        let radius = self.rectangle.width / 2.0;
-        let origin = Vector2::new(self.rectangle.x, self.rectangle.y).add_scalar(radius);
-        self.inventory
-            .render_weapon(d, &self.rectangle, self.orientation);
+        let assets = Rc::clone(&self.assets);
+        d.draw_rectangle_pro(self.rectangle, RVector2::zero(), 0.0, Color::WHITE);
+        if let Some(wpn) = self.weapon {
+            wpn.weapon_instance()
+                .render_weapon(d, &self.rectangle, self.orientation, assets);
+        }
     }
 }
 

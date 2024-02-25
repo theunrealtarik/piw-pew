@@ -5,6 +5,7 @@ use raylib::prelude::*;
 use lazy_static::lazy_static;
 use nalgebra::{Rotation2, Vector2};
 use serde::{Deserialize, Serialize};
+use std::rc::Rc;
 use std::{collections::HashMap, time::Duration};
 use strum_macros::VariantArray;
 
@@ -21,7 +22,7 @@ lazy_static! {
         Duration::from_millis(1500),
         30,
         4,
-        2700
+        27
     );
     pub static ref WPN_STATS_SHOTPEW: WeaponStats = WeaponStats::new(
         "PUMP Shotpew",
@@ -31,7 +32,7 @@ lazy_static! {
         Duration::from_millis(2000),
         5,
         5,
-        2100
+        21
     );
     pub static ref WPN_STATS_DEAN_1911: WeaponStats = WeaponStats::new(
         "DEAN 1911",
@@ -41,7 +42,7 @@ lazy_static! {
         Duration::from_millis(1100),
         7,
         4,
-        400
+        4
     );
     pub static ref WPN_STATS_PRRR: WeaponStats = WeaponStats::new(
         "PRRR",
@@ -51,7 +52,7 @@ lazy_static! {
         Duration::from_millis(2500),
         30,
         4,
-        5200
+        52
     );
 }
 
@@ -161,7 +162,7 @@ wpn_stats_mapping!(
     WPN_STATS_PRRR
 );
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Weapon {
     pub variant: WeaponVariant,
     pub texture: LTexture,
@@ -174,8 +175,6 @@ pub struct Weapon {
 
 impl Weapon {
     pub fn new(variant: WeaponVariant) -> Self {
-        let _ = WeaponStatsMapping::WPN_STATS_AKA_69.get();
-
         match variant {
             WeaponVariant::DEAN_1911 => {
                 let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
@@ -190,7 +189,7 @@ impl Weapon {
                 }
             }
             WeaponVariant::AKA_69 => {
-                let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
+                let stats = WeaponStatsMapping::WPN_STATS_AKA_69.get();
                 Weapon {
                     variant,
                     texture: LTexture::WPN_AKA,
@@ -202,7 +201,7 @@ impl Weapon {
                 }
             }
             WeaponVariant::SHOTPEW => {
-                let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
+                let stats = WeaponStatsMapping::WPN_STATS_SHOTPEW.get();
                 Weapon {
                     variant,
                     texture: LTexture::WPN_SHOTPEW,
@@ -214,7 +213,7 @@ impl Weapon {
                 }
             }
             WeaponVariant::PRRR => {
-                let stats = WeaponStatsMapping::WPN_STATS_DEAN_1911.get();
+                let stats = WeaponStatsMapping::WPN_STATS_PRRR.get();
                 Weapon {
                     variant,
                     texture: LTexture::WPN_PRRR,
@@ -287,6 +286,68 @@ impl Weapon {
     pub fn equip_key(&self) -> KeyboardKey {
         self.key
     }
+
+    pub fn render_weapon(
+        &self,
+        d: &mut RaylibMode2D<RaylibDrawHandle>,
+        player_rect: &Rectangle,
+        orientation: f32,
+        assets: SharedAssets<GameAssets>,
+    ) {
+        let assets = assets.borrow();
+        let buffer = assets.textures.get(&self.texture).unwrap();
+
+        let (wpn_w, wpn_h) = (
+            buffer.width as f32 * ENTITY_WEAPON_SIZE,
+            buffer.height as f32 * ENTITY_WEAPON_SIZE,
+        );
+
+        let radius = player_rect.width / 2.0;
+        let origin = Vector2::new(player_rect.x, player_rect.y).add_scalar(radius);
+
+        let wpn_coords =
+            Vector2::new(radius * orientation.cos(), radius * orientation.sin()) + origin;
+        let theta = orientation.to_degrees();
+
+        let flip_y = if theta.abs() <= 180.0 && theta.abs() > 90.0 {
+            true
+        } else {
+            false
+        };
+
+        let src_rect = Rectangle::new(
+            0.0,
+            0.0,
+            buffer.width as f32,
+            buffer.height as f32 * if flip_y { -1.0 } else { 1.0 },
+        );
+
+        let wpn_x = wpn_coords.x;
+        let wpn_y = wpn_coords.y;
+
+        let dest_rect = Rectangle::new(wpn_x, wpn_y, wpn_w, wpn_h);
+
+        d.draw_texture_pro(
+            buffer,
+            src_rect,
+            dest_rect,
+            RVector2::new(0.0, wpn_h / 2.0),
+            theta,
+            Color::WHITE,
+        );
+
+        #[cfg(debug_assertions)]
+        {
+            if d.is_key_down(KeyboardKey::KEY_LEFT_ALT) {
+                d.draw_rectangle_pro(dest_rect, RVector2::zero(), theta, Color::YELLOW);
+            }
+
+            let coords = self.muzzle(buffer, player_rect, orientation);
+
+            d.draw_circle(coords.x as i32, coords.y as i32, 2.0, Color::RED);
+            d.draw_circle_lines(origin.x as i32, origin.y as i32, radius, Color::RED);
+        }
+    }
 }
 
 /// controllers some puppet's (`Player`, `Enemy`) weapons 'n' ammo
@@ -308,6 +369,18 @@ impl Invenotry {
         }
     }
 
+    pub fn render_weapon(
+        &self,
+        d: &mut RaylibMode2D<RaylibDrawHandle>,
+        player_rect: &Rectangle,
+        orientation: f32,
+    ) {
+        if let Some(wpn) = self.selected_weapon() {
+            // let wpn = *wpn;
+            wpn.render_weapon(d, player_rect, orientation, Rc::clone(&self.assets));
+        }
+    }
+
     pub fn reset_weapons(&mut self) {
         self.weapons = HashMap::new();
         self.add(Weapon::new(WeaponVariant::DEAN_1911));
@@ -322,69 +395,6 @@ impl Invenotry {
 
     pub fn get(&self, variant: &WeaponVariant) -> Option<&Weapon> {
         self.weapons.get(variant)
-    }
-
-    pub fn render_weapon(
-        &mut self,
-        d: &mut RaylibMode2D<RaylibDrawHandle>,
-        player_rect: &Rectangle,
-        orientation: f32,
-    ) {
-        if let Some(wpn) = &self.selected_weapon() {
-            let assets = self.assets.borrow();
-            let buffer = assets.textures.get(&wpn.texture).unwrap();
-
-            let (wpn_w, wpn_h) = (
-                buffer.width as f32 * ENTITY_WEAPON_SIZE,
-                buffer.height as f32 * ENTITY_WEAPON_SIZE,
-            );
-
-            let radius = player_rect.width / 2.0;
-            let origin = Vector2::new(player_rect.x, player_rect.y).add_scalar(radius);
-
-            let wpn_coords =
-                Vector2::new(radius * orientation.cos(), radius * orientation.sin()) + origin;
-            let theta = orientation.to_degrees();
-
-            let flip_y = if theta.abs() <= 180.0 && theta.abs() > 90.0 {
-                true
-            } else {
-                false
-            };
-
-            let src_rect = Rectangle::new(
-                0.0,
-                0.0,
-                buffer.width as f32,
-                buffer.height as f32 * if flip_y { -1.0 } else { 1.0 },
-            );
-
-            let wpn_x = wpn_coords.x;
-            let wpn_y = wpn_coords.y;
-
-            let dest_rect = Rectangle::new(wpn_x, wpn_y, wpn_w, wpn_h);
-
-            d.draw_texture_pro(
-                buffer,
-                src_rect,
-                dest_rect,
-                RVector2::new(0.0, wpn_h / 2.0),
-                theta,
-                Color::WHITE,
-            );
-
-            #[cfg(debug_assertions)]
-            {
-                if d.is_key_down(KeyboardKey::KEY_LEFT_ALT) {
-                    d.draw_rectangle_pro(dest_rect, RVector2::zero(), theta, Color::YELLOW);
-                }
-
-                let coords = wpn.muzzle(buffer, player_rect, orientation);
-
-                d.draw_circle(coords.x as i32, coords.y as i32, 2.0, Color::RED);
-                d.draw_circle_lines(origin.x as i32, origin.y as i32, radius, Color::RED);
-            }
-        };
     }
 
     pub fn selected_weapon(&self) -> Option<&Weapon> {
