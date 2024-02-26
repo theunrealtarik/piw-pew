@@ -1,8 +1,14 @@
 use raylib::color::Color;
 
-use crate::types::Health;
+use crate::types::{Cash, Health};
 
 pub static INITIAL_PAYLOAD_SIZE: usize = 255;
+pub static INTIIAL_PLAYER_CASH: Cash = 200;
+
+pub static PLAYER_KILL_REWARD: Cash = 400;
+pub static PLAYER_DEATH_PENALTY: Cash = 700;
+pub static PLAYER_HEATLH_COST: Cash = 450;
+pub static PLAYER_AMMO_COST: Cash = 320;
 
 pub static WORLD_TILE_SIZE: f32 = 70.0;
 pub static ENTITY_PLAYER_SIZE: f32 = WORLD_TILE_SIZE * 0.8;
@@ -17,15 +23,15 @@ pub static WINDOW_WIDTH: i32 = 950;
 pub static WINDOW_PADDING: i32 = 20;
 pub static WINDOW_BACKGROUND_COLOR: Color = Color::new(17, 18, 19, 255);
 
-pub static WINDOW_TOP_RIGHT_X: i32 = WINDOW_WIDTH;
-pub static WINDOW_TOP_RIGHT_Y: i32 = 0;
-pub static WINDOW_TOP_LEFT_X: i32 = 0;
-pub static WINDOW_TOP_LEFT_Y: i32 = 0;
+pub static WINDOW_TOP_RIGHT_X: i32 = WINDOW_WIDTH - WINDOW_PADDING;
+pub static WINDOW_TOP_RIGHT_Y: i32 = WINDOW_PADDING;
+pub static WINDOW_TOP_LEFT_X: i32 = WINDOW_PADDING;
+pub static WINDOW_TOP_LEFT_Y: i32 = WINDOW_PADDING;
 
-pub static WINDOW_BOTTOM_RIGHT_X: i32 = WINDOW_WIDTH;
-pub static WINDOW_BOTTOM_RIGHT_Y: i32 = WINDOW_HEIGHT;
-pub static WINDOW_BOTTOM_LEFT_X: i32 = 0;
-pub static WINDOW_BOTTOM_LEFT_Y: i32 = WINDOW_HEIGHT;
+pub static WINDOW_BOTTOM_RIGHT_X: i32 = WINDOW_WIDTH - WINDOW_PADDING;
+pub static WINDOW_BOTTOM_RIGHT_Y: i32 = WINDOW_HEIGHT - WINDOW_PADDING;
+pub static WINDOW_BOTTOM_LEFT_X: i32 = WINDOW_PADDING;
+pub static WINDOW_BOTTOM_LEFT_Y: i32 = WINDOW_HEIGHT - WINDOW_PADDING;
 
 pub static WINDOW_CENTER_X: f32 = WINDOW_WIDTH as f32 / 2.0;
 pub static WINDOW_CENTER_Y: f32 = WINDOW_HEIGHT as f32 / 2.0;

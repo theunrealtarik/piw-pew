@@ -62,6 +62,8 @@ pub enum GameNetworkPacket {
     NET_PLAYER_WEAPON_SELECT(RawClientId, WeaponVariant),
     NET_PROJECTILE_CREATE(ProjectileData),
     NET_PROJECTILE_IMPACT(RawProjectileId, Option<RawClientId>, Damage),
+    NET_PLAYER_HEAL(RawClientId),
+    NET_PLAYER_AMMO(),
 }
 
 impl GameNetworkPacket {

@@ -23,6 +23,7 @@ pub mod types {
     pub type Cash = i64;
     pub type Damage = u8;
     pub type Health = i8;
+    pub type Armor = i8;
     pub type RawClientId = u64;
     pub type RawProjectileId = u64;
     pub type Orientation = f32;

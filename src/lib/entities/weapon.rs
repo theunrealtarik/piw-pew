@@ -20,40 +20,40 @@ lazy_static! {
         40,
         WeaponAccuracy::Moderate(1),
         Duration::from_millis(100),
-        Duration::from_millis(1500),
+        Duration::from_millis(900),
         30,
         4,
-        27
+        2700
     );
     pub static ref WPN_STATS_SHOTPEW: WeaponStats = WeaponStats::new(
         "PUMP Shotpew",
         25,
         WeaponAccuracy::Low(5),
         Duration::from_millis(300),
-        Duration::from_millis(2000),
+        Duration::from_millis(1800),
         5,
         5,
-        21
+        2100
     );
     pub static ref WPN_STATS_DEAN_1911: WeaponStats = WeaponStats::new(
         "DEAN 1911",
         25,
         WeaponAccuracy::High(1),
         Duration::from_millis(300),
-        Duration::from_millis(1100),
+        Duration::from_millis(500),
         7,
         4,
-        4
+        400
     );
     pub static ref WPN_STATS_PRRR: WeaponStats = WeaponStats::new(
         "PRRR",
         45,
         WeaponAccuracy::Low(1),
         Duration::from_millis(50),
-        Duration::from_millis(2500),
+        Duration::from_millis(1500),
         30,
         4,
-        52
+        5200
     );
 }
 
@@ -84,7 +84,7 @@ impl WeaponAccuracy {
         let (num_shots, deviation) = match self {
             Self::Low(n) => (*n, 0.30),
             Self::Moderate(n) => (*n, 0.10),
-            Self::High(n) => (*n, 0.0),
+            Self::High(n) => (*n, 0.01),
         };
 
         let mut deviations = Vec::new();
@@ -443,5 +443,11 @@ impl Invenotry {
 
     pub fn remove(&mut self, variant: WeaponVariant) -> Option<Weapon> {
         self.weapons.remove(&variant)
+    }
+
+    pub fn refill_ammo(&mut self) {
+        if let Some(wpn) = self.selected_weapon_mut() {
+            wpn.curr_total_ammo = wpn.stats.total_ammo;
+        }
     }
 }

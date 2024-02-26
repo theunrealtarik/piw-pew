@@ -63,7 +63,7 @@ impl Player {
                 configs::PLAYER_INIT_VELOCITY_Y,
             ),
             direction: Vector2::new(1.0, 1.0),
-            health: 100,
+            health: ENTITY_PLAYER_MAX_HEALTH,
             timers: Timer::default(),
             assets,
         }
@@ -229,6 +229,28 @@ impl NetUpdateHandle for Player {
                 self.reloading = false;
                 wpn.reload();
             }
+
+            if handle.is_key_pressed(KeyboardKey::KEY_E)
+                && wpn.curr_total_ammo < wpn.stats.total_ammo
+                && self.inventory.cash >= PLAYER_AMMO_COST
+            {
+                network.client.send_message(
+                    DefaultChannel::ReliableUnordered,
+                    GameNetworkPacket::NET_PLAYER_AMMO().serialized().unwrap(),
+                );
+            }
+        }
+
+        if handle.is_key_pressed(KeyboardKey::KEY_Q)
+            && self.health < ENTITY_PLAYER_MAX_HEALTH
+            && self.inventory.cash >= PLAYER_HEATLH_COST
+        {
+            network.client.send_message(
+                DefaultChannel::ReliableUnordered,
+                GameNetworkPacket::NET_PLAYER_HEAL(network.transport.client_id().raw())
+                    .serialized()
+                    .unwrap(),
+            );
         }
 
         for wpn_variant in WeaponVariant::VARIANTS {

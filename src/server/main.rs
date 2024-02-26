@@ -195,7 +195,7 @@ fn main() {
                                     if let Some(player) =
                                         state.players.get_mut(&ClientId::from_raw(id))
                                     {
-                                        player.data.cash += 500;
+                                        player.data.cash += PLAYER_KILL_REWARD;
                                         player.data.cash =
                                             nalgebra::clamp(player.data.cash, 0, 16000);
 
@@ -232,6 +232,38 @@ fn main() {
                                 DefaultChannel::ReliableUnordered,
                                 message,
                             ),
+                        GameNetworkPacket::NET_PLAYER_HEAL(id) => {
+                            if let Some(player) = state.players.get_mut(&ClientId::from_raw(id)) {
+                                if player.data.cash >= PLAYER_HEATLH_COST {
+                                    player.data.health = ENTITY_PLAYER_MAX_HEALTH;
+                                    player.data.cash -= PLAYER_HEATLH_COST;
+
+                                    #[cfg(debug_assertions)]
+                                    {
+                                        log::debug!("requested heal {}", player.id);
+                                    }
+
+                                    server.broadcast_message(
+                                        DefaultChannel::ReliableUnordered,
+                                        message,
+                                    );
+                                }
+                            }
+                        }
+                        GameNetworkPacket::NET_PLAYER_AMMO() => {
+                            #[cfg(debug_assertions)]
+                            {
+                                log::debug!("requested ammo {}", player.id);
+                            }
+
+                            if player.data.cash >= PLAYER_AMMO_COST {
+                                server.send_message(
+                                    client_id,
+                                    DefaultChannel::ReliableUnordered,
+                                    message,
+                                );
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -402,8 +434,6 @@ impl Map {
     fn load(name: &str) -> Result<Self, io::Error> {
         let map_path = current_dir().unwrap().join("maps").join(name);
 
-        log::debug!("{:?}", map_path);
-
         let mut map: Tiles = HashMap::new();
         match File::open(map_path) {
             Ok(ref mut file) => {
@@ -421,7 +451,6 @@ impl Map {
                             }
                         }
 
-                        log::debug!("\n{}", buffer);
                         Ok(Self { tiles: map })
                     }
                     Err(err) => Err(err),

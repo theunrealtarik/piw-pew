@@ -2,15 +2,17 @@ use env_logger;
 use raylib::prelude::*;
 use strum::VariantArray;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
+use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::{cell::RefCell, net::SocketAddr, rc::Rc, time::SystemTime};
+use std::rc::Rc;
+use std::time::SystemTime;
 
 use lib::prelude::*;
 use lib::types::*;
-use lib::utils;
 
 fn main() {
     env_logger::init_from_env(Logger::env());
@@ -281,6 +283,20 @@ impl NetUpdateHandle for Game {
                             enemy.weapon = Some(variant)
                         }
                     }
+                    GameNetworkPacket::NET_PLAYER_HEAL(id) => {
+                        let id = ClientId::from_raw(id);
+
+                        if id == network.transport.client_id() {
+                            local_player.health = ENTITY_PLAYER_MAX_HEALTH;
+                            local_player.inventory.cash -= PLAYER_HEATLH_COST;
+                        } else if let Some(puppet) = self.world.enemies.get_mut(&id) {
+                            puppet.health = ENTITY_PLAYER_MAX_HEALTH;
+                        }
+                    }
+                    GameNetworkPacket::NET_PLAYER_AMMO() => {
+                        local_player.inventory.refill_ammo();
+                        local_player.inventory.cash -= PLAYER_AMMO_COST
+                    }
                     _ => {}
                 }
             }
@@ -305,11 +321,9 @@ impl NetUpdateHandle for Game {
             }
         }
 
-        // local player stuff
         local_player.net_update(handle, network);
 
         let position = local_player.on_move(handle);
-
         if self.world.in_bounds(
             position.x,
             position.y,
@@ -400,12 +414,11 @@ impl RenderHandle for Game {
         }
 
         self.player.render(d);
+        self.world.render_projectiles(d);
 
         for enemy in self.world.enemies.values_mut() {
             enemy.render(d);
         }
-
-        self.world.render_projectiles(d);
     }
 }
 
@@ -652,9 +665,89 @@ impl UserInterfaceHandle for Game {
                 Color::WHITE,
             );
 
-            let weapon_icon_length = 50.0;
-            let bl_window_y = WINDOW_BOTTOM_LEFT_Y as f32 - WINDOW_PADDING as f32;
+            let icon_length = 50.0;
 
+            let oil_buffer = assets.textures.get(&LTexture::CONS_OLIVE_OIL).unwrap();
+            d.draw_texture_pro(
+                oil_buffer,
+                Rectangle::new(0.0, 0.0, oil_buffer.width as f32, oil_buffer.height as f32),
+                Rectangle::new(
+                    WINDOW_BOTTOM_LEFT_X as f32,
+                    WINDOW_BOTTOM_LEFT_Y as f32 - icon_length,
+                    icon_length,
+                    icon_length,
+                ),
+                math::Vector2::zero(),
+                0.0,
+                if local_player.health < ENTITY_PLAYER_MAX_HEALTH
+                    && local_player.inventory.cash >= PLAYER_HEATLH_COST
+                {
+                    Color::WHITE
+                } else {
+                    Color::GRAY
+                },
+            );
+
+            // waspons ui
+            let lock_icon = assets.textures.get(&LTexture::UI_LOCK).unwrap();
+            for (index, wpn_variant) in WeaponVariant::VARIANTS.iter().enumerate() {
+                let texture = match wpn_variant {
+                    WeaponVariant::DEAN_1911 => assets.textures.get(&LTexture::UI_DEAN_1911),
+                    WeaponVariant::AKA_69 => assets.textures.get(&LTexture::UI_AKA_69),
+                    WeaponVariant::SHOTPEW => assets.textures.get(&LTexture::UI_SHOTPEW),
+                    WeaponVariant::PRRR => assets.textures.get(&LTexture::UI_PRRR),
+                };
+
+                let other_wpn = Weapon::new(*wpn_variant);
+
+                if let Some(buffer) = texture {
+                    let dest_rect = Rectangle::new(
+                        WINDOW_BOTTOM_RIGHT_X as f32 - (index * 60) as f32 - icon_length as f32,
+                        WINDOW_BOTTOM_LEFT_Y as f32 - icon_length,
+                        icon_length,
+                        icon_length,
+                    );
+
+                    let affordable = local_player.inventory.cash >= *other_wpn.stats.price() as i64;
+                    d.draw_texture_pro(
+                        buffer,
+                        Rectangle::new(0.0, 0.0, buffer.width as f32, buffer.height as f32),
+                        dest_rect,
+                        RVector2::zero(),
+                        0.0,
+                        match local_player.inventory.selected_weapon() {
+                            Some(wpn) => {
+                                if wpn.variant == *wpn_variant {
+                                    Color::WHITE
+                                } else {
+                                    if !affordable && !local_player.inventory.has(wpn_variant) {
+                                        Color::BLACK
+                                    } else {
+                                        Color::GRAY
+                                    }
+                                }
+                            }
+                            None => Color::GRAY,
+                        },
+                    );
+
+                    if !local_player.inventory.has(&other_wpn.variant) {
+                        d.draw_texture_pro(
+                            lock_icon,
+                            Rectangle::new(
+                                0.0,
+                                0.0,
+                                lock_icon.width as f32,
+                                lock_icon.height as f32,
+                            ),
+                            dest_rect,
+                            RVector2::zero(),
+                            0.0,
+                            Color::WHITE,
+                        )
+                    }
+                };
+            }
             // wapon
             if let Some(selected_wpn) = local_player.inventory.selected_weapon() {
                 #[cfg(debug_assertions)]
@@ -703,70 +796,37 @@ impl UserInterfaceHandle for Game {
                     &text,
                     RVector2::new(
                         WINDOW_PADDING as f32,
-                        bl_window_y - weapon_icon_length - text_size.y * 1.1,
+                        WINDOW_BOTTOM_LEFT_Y as f32 - icon_length - text_size.y * 1.1,
                     ),
                     font_size,
                     1.0,
                     color,
                 );
-
-                // waspons ui
-                let lock_icon = assets.textures.get(&LTexture::UI_LOCK).unwrap();
-                for (index, wpn_variant) in WeaponVariant::VARIANTS.iter().enumerate() {
-                    let texture = match wpn_variant {
-                        WeaponVariant::DEAN_1911 => assets.textures.get(&LTexture::UI_DEAN_1911),
-                        WeaponVariant::AKA_69 => assets.textures.get(&LTexture::UI_AKA_69),
-                        WeaponVariant::SHOTPEW => assets.textures.get(&LTexture::UI_SHOTPEW),
-                        WeaponVariant::PRRR => assets.textures.get(&LTexture::UI_PRRR),
-                    };
-
-                    let other_wpn = Weapon::new(*wpn_variant);
-
-                    if let Some(buffer) = texture {
-                        let dest_rect = Rectangle::new(
-                            WINDOW_PADDING as f32 + (index * 60) as f32,
-                            bl_window_y - weapon_icon_length,
-                            weapon_icon_length,
-                            weapon_icon_length,
-                        );
-
-                        let affordable =
-                            local_player.inventory.cash >= *other_wpn.stats.price() as i64;
-
-                        d.draw_texture_pro(
-                            buffer,
-                            Rectangle::new(0.0, 0.0, buffer.width as f32, buffer.height as f32),
-                            dest_rect,
-                            RVector2::zero(),
-                            0.0,
-                            if selected_wpn.variant == other_wpn.variant {
-                                Color::WHITE
-                            } else {
-                                if !affordable {
-                                    Color::BLACK
-                                } else {
-                                    Color::GRAY
-                                }
-                            },
-                        );
-
-                        if !local_player.inventory.has(&other_wpn.variant) {
-                            d.draw_texture_pro(
-                                lock_icon,
-                                Rectangle::new(
-                                    0.0,
-                                    0.0,
-                                    lock_icon.width as f32,
-                                    lock_icon.height as f32,
-                                ),
-                                dest_rect,
-                                RVector2::zero(),
-                                0.0,
-                                Color::WHITE,
-                            )
-                        }
-                    };
-                }
+                let ammo_buffer = assets.textures.get(&LTexture::CONS_AMMO_BOX).unwrap();
+                d.draw_texture_pro(
+                    ammo_buffer,
+                    Rectangle::new(
+                        0.0,
+                        0.0,
+                        ammo_buffer.width as f32,
+                        ammo_buffer.height as f32,
+                    ),
+                    Rectangle::new(
+                        WINDOW_BOTTOM_LEFT_X as f32 + icon_length * 1.3,
+                        WINDOW_BOTTOM_LEFT_Y as f32 - icon_length,
+                        icon_length,
+                        icon_length,
+                    ),
+                    math::Vector2::zero(),
+                    0.0,
+                    if selected_wpn.curr_total_ammo < selected_wpn.stats.total_ammo
+                        && local_player.inventory.cash >= PLAYER_AMMO_COST
+                    {
+                        Color::WHITE
+                    } else {
+                        Color::GRAY
+                    },
+                );
             };
         }
     }
