@@ -18,8 +18,11 @@ fn main() {
     env_logger::init_from_env(Logger::env());
 
     let current_dir = std::env::current_dir().unwrap();
+    let settings = GameSettings::load(&current_dir.join("settings.json"));
 
-    let server_addr: SocketAddr = "127.0.0.1:6969".parse().expect("failed to server socket");
+    let server_addr: SocketAddr = format!("{}:{}", settings.ip, settings.port)
+        .parse()
+        .expect("failed to server socket");
     let current_time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
@@ -38,7 +41,6 @@ fn main() {
     };
     let assets = Rc::new(RefCell::new(ga_loaded.assets));
 
-    let settings = GameSettings::load(&current_dir.join("settings.json"));
     let mut data: [u8; 256] = [0; 256];
     for (index, byte) in settings.username.bytes().enumerate() {
         if index >= INITIAL_PAYLOAD_SIZE {
@@ -506,12 +508,16 @@ impl AssetsHandle for GameMenu {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GameSettings {
     pub username: String,
+    pub ip: String,
+    pub port: u16,
 }
 
 impl GameSettings {
     pub fn load(path: &PathBuf) -> Self {
         let default_user_settings = GameSettings {
             username: String::from("Player"),
+            ip: String::from("127.0.0.1"),
+            port: 6969,
         };
 
         match File::open(&path) {
