@@ -38,5 +38,5 @@ pub static WINDOW_CENTER_Y: f32 = WINDOW_HEIGHT as f32 / 2.0;
 
 pub static PLAYER_COLOR: Color = Color::new(246, 251, 255, 255);
 pub static PLAYER_CAMERA_OFFSET: f32 = 20.0;
-pub static PLAYER_INIT_VELOCITY_X: f32 = 250.0;
-pub static PLAYER_INIT_VELOCITY_Y: f32 = 250.0;
+pub static PLAYER_INIT_VELOCITY_X: f32 = 450.0;
+pub static PLAYER_INIT_VELOCITY_Y: f32 = 450.0;
